@@ -1,0 +1,1619 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<!-- Sicurezza: da dove possono arrivare script, stili e immagini e con chi si può parlare (CSP). Anche se un testo
+     malevolo riuscisse a entrare nella pagina, non potrebbe caricare codice da altri siti né mandare i dati altrove. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://cdnjs.cloudflare.com https://accounts.google.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com https://accounts.google.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https://*.tile.openstreetmap.org https://*.googleusercontent.com https://www.gstatic.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://oauth2.googleapis.com https://accounts.google.com https://www.gstatic.com https://api.coingecko.com https://api.binance.com https://nominatim.openstreetmap.org https://router.project-osrm.org https://api.openrouteservice.org; frame-src 'self' https://accounts.google.com https://apis.google.com https://*.firebaseapp.com; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#1a1411">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Dashboard">
+<link rel="icon" type="image/png" href="dashboard-favicon.png">
+<link rel="apple-touch-icon" href="dashboard-180.png">
+<title>Dashboard</title>
+<script src="comune/config.js"></script>
+<script src="comune/fisso.js"></script>
+<script src="comune/moto.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://www.gstatic.com">
+<link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<!--
+  Dashboard: una pagina che riassume le app personali (Bilancio, Palestra, Lavoro).
+  La Palestra si legge direttamente dalla cassaforte (Cassaforte.tutti('palestra')).
+  Nessun dato proprio: apre Bilancio (bilancio/, stesso indirizzo) in un riquadro nascosto e ne legge i numeri,
+  Accesso unico: account e passphrase si chiedono qui (comune/cassaforte.js); Bilancio, Palestra e Lavoro, se aperti senza accesso,
+  rimandano qui con ?torna=… e poi si riaprono da soli.
+-->
+<style>
+:root{
+  --ink:#fff; --ink2:rgba(255,255,255,.74); --ink3:rgba(255,255,255,.6);
+  --acc:#F2711C; --acc-soft:#ffb07a; --acc-ink:#a04a0c;
+  --glass:rgba(40,32,28,.55); --line:rgba(255,255,255,.10);
+  --tile:rgba(255,255,255,.94); --tile-ink:#1d1a18; --tile-ink2:#5e5650;
+  --ok:#7fd3a8; --goo:#8ab4f8;
+  --sat:env(safe-area-inset-top); --sab:env(safe-area-inset-bottom);
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{min-height:100vh;font-family:Manrope,system-ui,sans-serif;color:var(--ink);background:#17120f;-webkit-font-smoothing:antialiased}
+body::before{content:'';position:fixed;inset:0;z-index:-1;background:
+  radial-gradient(40% 35% at 18% 12%, rgba(255,196,140,.35), transparent 70%),
+  radial-gradient(35% 40% at 85% 20%, rgba(120,90,70,.55), transparent 70%),
+  radial-gradient(45% 40% at 70% 85%, rgba(242,113,28,.18), transparent 70%),
+  radial-gradient(40% 45% at 10% 90%, rgba(90,70,60,.6), transparent 70%),
+  linear-gradient(160deg,#3a2d25 0%,#241b16 55%,#15100d 100%)}
+a{color:var(--acc-soft)}a:hover{color:#ffd2b0}
+button{font:inherit;color:inherit}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace}
+.glass{background:var(--glass);-webkit-backdrop-filter:blur(26px) saturate(140%);backdrop-filter:blur(26px) saturate(140%);border:1px solid var(--line);box-shadow:0 20px 60px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.08)}
+.wrap{max-width:1440px;transition:max-width .55s cubic-bezier(.3,.85,.3,1);margin:0 auto;padding:calc(20px + var(--sat)) 20px 18px;display:flex;flex-wrap:wrap;gap:16px;align-items:stretch}
+
+/* barra delle sezioni */
+nav{border-radius:26px;padding:14px 10px;display:flex;flex-direction:column;align-items:center;gap:10px;flex:0 0 auto;align-self:flex-start;position:sticky;top:20px;z-index:10} /* sopra i riquadri: i nomi dei pulsanti non finiscono sotto */
+.brand{width:44px;height:44px;border-radius:14px;display:flex;align-items:center;justify-content:center;color:var(--acc);font-weight:800;font-size:16px}
+.navbtn{width:44px;height:44px;border-radius:14px;border:0;background:transparent;color:var(--ink3);display:flex;align-items:center;justify-content:center;cursor:pointer;text-decoration:none;position:relative}
+.navbtn:hover{background:rgba(255,255,255,.08);color:#fff}
+.navbtn.on{background:var(--acc);color:#fff;box-shadow:0 8px 20px rgba(242,113,28,.45)}
+.navbtn[disabled]{opacity:.35;cursor:default}
+.navbtn .tip{position:absolute;left:54px;z-index:11;box-shadow:0 6px 18px rgba(0,0,0,.35);white-space:nowrap;background:rgba(0,0,0,.75);color:#fff;font-size:12px;font-weight:600;padding:6px 10px;border-radius:10px;opacity:0;pointer-events:none;transition:opacity .15s}
+.navbtn:hover .tip{opacity:1}
+.nav-spazio{flex:1 1 auto;min-height:24px}
+
+main{border-radius:28px;padding:24px;flex:999 1 560px;min-width:0;display:flex;flex-direction:column;gap:18px}
+aside{border-radius:28px;padding:20px;flex:1 1 280px;max-width:380px;display:flex;flex-direction:column;gap:16px}
+.head{display:flex;flex-wrap:wrap;align-items:center;gap:14px}
+.head h1{margin:0;font-size:24px;font-weight:800;letter-spacing:-.01em}
+.head p{margin:4px 0 0;font-size:13px;color:var(--ink2)}
+.cerca{position:relative;flex:0 1 320px;min-width:0}
+.cerca label{display:flex;align-items:center;gap:8px;background:rgba(0,0,0,.28);border:1px solid var(--line);border-radius:99px;padding:0 14px;height:44px}
+.cerca input{background:transparent;border:0;outline:0;color:#fff;font:500 13px Manrope,sans-serif;width:100%}
+.cerca input::placeholder{color:var(--ink3)}
+.risultati{position:absolute;left:0;right:0;top:50px;z-index:5;border-radius:18px;padding:6px;display:none;max-height:360px;overflow:auto}
+.risultati.on{display:block}
+.ris{display:flex;justify-content:space-between;gap:10px;padding:9px 10px;border-radius:12px;font-size:12.5px;text-decoration:none;color:#fff}
+.ris:hover{background:rgba(255,255,255,.08);color:#fff}
+.ris small{display:block;color:var(--ink3);font-size:11px}
+.campana{width:44px;height:44px;border-radius:99px;border:1px solid var(--line);background:rgba(0,0,0,.28);display:flex;align-items:center;justify-content:center;position:relative;cursor:pointer}
+.campana b{position:absolute;top:6px;right:6px;min-width:16px;height:16px;border-radius:99px;background:var(--acc);font-size:10px;line-height:16px;text-align:center;padding:0 4px}
+
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px}
+.tile{background:var(--tile);border-radius:18px;padding:16px;display:flex;flex-direction:column;gap:10px;min-width:0;color:var(--tile-ink);text-decoration:none;transition:transform .15s}
+a.tile:hover{transform:translateY(-3px);color:var(--tile-ink)}
+.tile-h{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.tile-h small{font-size:12px;font-weight:700;color:#3c3631}
+.tile-h span{font-size:11px;font-weight:700;color:var(--acc-ink)}
+.bars{display:flex;align-items:flex-end;gap:4px;height:34px}
+.bars i{width:5px;border-radius:3px;background:var(--acc);opacity:.85;min-height:3px}
+.tile .v{font-size:20px;font-weight:700;color:var(--acc-ink)}
+.tile .s{font-size:11.5px;color:var(--tile-ink2)}
+.tile .s .pos{color:#1b8752;font-weight:700} .tile .s .neg{color:#c43c29;font-weight:700}
+.tile.grande .v{font-size:32px;margin-top:auto;letter-spacing:-.02em}
+.tile.grande .s{font-size:12.5px}
+.tile.testo .v{font-family:Manrope,system-ui,sans-serif;font-size:17px;font-weight:800;line-height:1.25;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.tile .ico{height:34px;display:flex;align-items:center;color:var(--acc)}
+
+.riga2{display:flex;flex-wrap:wrap;gap:14px}
+.grafico{flex:2 1 380px}
+.grafico svg{width:100%;height:180px;display:block}
+.mesi{display:flex;justify-content:space-between;font-size:10.5px;color:#6b625b}
+.leg{display:flex;gap:16px;font-size:11.5px;color:#3c3631}
+.giornale{flex:1 1 240px;min-height:260px;border-radius:18px;padding:16px;display:flex;flex-direction:column;justify-content:space-between;gap:12px;background:linear-gradient(160deg,#2b3f4d 0%,#18262f 60%,#0f1a21 100%);border:1px solid var(--line)}
+.chip{font-size:11px;font-weight:700;border-radius:99px;padding:4px 10px;background:rgba(255,255,255,.12);color:#fff}
+.pill{align-self:flex-start;background:var(--acc);color:#fff;text-decoration:none;font-weight:700;font-size:12.5px;border-radius:99px;padding:12px 16px}
+.pill:hover{color:#fff;filter:brightness(1.08)}
+
+.sez{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;gap:10px}
+.sez h2{margin:0;font-size:14px;font-weight:800;padding-left:10px;border-left:3px solid var(--acc)}
+.mezzi{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
+.mezzo{border-radius:18px;padding:16px;display:flex;align-items:center;gap:14px;background:var(--tile);color:var(--tile-ink);text-decoration:none;transition:transform .15s}
+.mezzo:hover{transform:translateY(-3px);color:var(--tile-ink)}
+.mezzo.acc{background:var(--acc);color:#fff}
+.mezzo.acc:hover{color:#fff}
+.mezzo b{font-size:15px;font-weight:800}
+.mezzo .s{font-size:11.5px;margin-top:4px;opacity:.85}
+.mezzo .p{margin-top:10px;display:inline-block;font-size:11px;font-weight:700;border-radius:99px;padding:4px 10px;background:#f3ece6}
+.mezzo.acc .p{background:rgba(255,255,255,.22)}
+.mezzo .tot{width:64px;height:64px;border-radius:99px;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#fde3d0;flex:0 0 auto;font-size:11px;font-weight:800;text-align:center;line-height:1.15}
+.mezzo.acc .tot{background:rgba(255,255,255,.22)}
+
+.profilo{display:flex;align-items:center;gap:12px}
+.blocca{width:36px;height:36px;border-radius:12px;border:1px solid var(--line);background:rgba(255,255,255,.06);color:var(--ink2);display:grid;place-items:center;cursor:pointer;flex:none}
+.blocca:hover{color:var(--ink)}
+.avatar{width:40px;height:40px;border-radius:99px;background:var(--acc);display:flex;align-items:center;justify-content:center;font-weight:800}
+.stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;text-align:center}
+.stats div{background:rgba(255,255,255,.07);border-radius:14px;padding:10px 6px}
+.stats b{display:block;font-size:15px}
+.stats small{font-size:10.5px;color:var(--ink3)}
+.cal{background:rgba(255,255,255,.06);border-radius:18px;padding:14px}
+.cal-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.cal-h button{width:32px;height:32px;border-radius:99px;border:0;background:rgba(255,255,255,.10);cursor:pointer}
+.cal-g{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:2px;text-align:center}
+.cal-g .wd{font-size:10.5px;color:var(--ink3);padding:4px 0}
+.cal-g .d{height:30px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:11.5px;color:rgba(255,255,255,.85);border-radius:99px;position:relative}
+.cal-g .d.oggi{background:var(--acc);color:#fff;font-weight:800}
+.cal-g .d.ev::after{content:'';position:absolute;bottom:2px;width:5px;height:5px;border-radius:99px;background:var(--ok)}
+.cal-g .d.oggi.ev::after{background:#fff}
+.cal-g .d.gev::before{content:'';position:absolute;bottom:2px;left:calc(50% + 4px);width:5px;height:5px;border-radius:99px;background:var(--goo)}
+.cal-g .d.ev.gev::after{transform:translateX(-4px)}
+.goo-bar{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:10px;font-size:11.5px;color:var(--ink2)}
+.goo-bar button,.goo-bar a{border:1px solid var(--line);background:rgba(255,255,255,.08);color:#fff;border-radius:99px;padding:0 12px;min-height:34px;font-size:12px;font-weight:700;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center}
+.item{position:relative}
+.item .agg{width:32px;height:32px;border-radius:10px;border:1px solid var(--line);background:rgba(255,255,255,.08);color:var(--goo);display:grid;place-items:center;cursor:pointer;flex:0 0 auto;font-weight:800}
+.item .agg.fatto{color:var(--ok);cursor:default}
+.item .tag.goo{background:rgba(138,180,248,.18);color:var(--goo)}
+.cal-leg{display:flex;gap:12px;margin-top:10px;font-size:10.5px;color:var(--ink2)}
+.agenda{display:flex;flex-direction:column;gap:8px}
+.item{display:flex;align-items:center;gap:12px;padding:10px;border-radius:14px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.06);text-decoration:none;color:#fff}
+.item:hover{background:rgba(255,255,255,.11);color:#fff}
+.item .tag{width:40px;height:40px;border-radius:12px;background:rgba(242,113,28,.18);color:var(--acc-soft);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;flex:0 0 auto}
+.item .t{flex:1 1 auto;min-width:0}
+.item .t span{font-size:10px;font-weight:700;color:var(--acc-soft)}
+.item .t div{font-size:12.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item .t small{font-size:11px;color:var(--ink3)}
+.item .amt{font-size:12px;font-weight:700;white-space:nowrap}
+.item .t span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+.vuoto{font-size:12px;color:var(--ink3);padding:8px 2px}
+
+.seg{width:fit-content;max-width:calc(100% - 24px);margin:0 auto calc(20px + var(--sab));border-radius:99px;padding:5px;display:flex;justify-content:center;gap:4px}
+.seg a{color:var(--ink2);text-decoration:none;font-weight:600;font-size:12.5px;padding:10px 14px;border-radius:99px}
+.seg a.on{background:var(--acc);color:#fff}
+
+/* finestre della Dashboard: calendario e impostazioni */
+.pannello{position:fixed;inset:0;z-index:40;display:none;align-items:center;justify-content:center;padding:calc(16px + var(--sat)) 16px calc(16px + var(--sab));background:rgba(10,8,6,.72);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.pannello.on{display:flex}
+.pannello .box{width:min(1100px,100%);max-height:100%;overflow:auto;border-radius:28px;padding:20px}
+.pannello .box.stretto{width:min(560px,100%)}
+.pann-h{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
+.pann-h h2{margin:0;font-size:20px;font-weight:800}
+.pann-h button,.tondo{width:40px;height:40px;border-radius:99px;border:1px solid var(--line);background:rgba(255,255,255,.08);color:#fff;cursor:pointer;display:grid;place-items:center}
+.calv{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+.calv .wd{font-size:11px;color:var(--ink3);text-align:center;padding:2px 0}
+.calv .g{min-height:96px;border-radius:14px;background:rgba(255,255,255,.06);border:1px solid transparent;padding:6px;display:flex;flex-direction:column;gap:3px;cursor:pointer;text-align:left;color:#fff;min-width:0;font:inherit}
+.calv .g:hover{background:rgba(255,255,255,.1)}
+.calv .g.fuori{opacity:.35}
+.calv .g.oggi{border-color:var(--acc)}
+.calv .g.sel{background:rgba(242,113,28,.16)}
+.calv .n{font-size:12px;font-weight:800}
+.calv .g.oggi .n{color:var(--acc-soft)}
+.ev-c{font-size:10.5px;font-weight:700;border-radius:6px;padding:2px 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;background:rgba(255,255,255,.1)}
+.ev-c.bil{background:rgba(242,113,28,.28)} .ev-c.gio{background:rgba(70,160,190,.32)} .ev-c.pal{background:rgba(160,120,230,.32)} .ev-c.goo{background:rgba(138,180,248,.28)}
+.ev-piu{font-size:10px;color:var(--ink3)}
+.giorno-sel{margin-top:14px}
+.leg-c{display:flex;flex-wrap:wrap;gap:12px;font-size:11.5px;color:var(--ink2);margin:10px 0 0}
+.leg-c i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.imp-sez{border-top:1px solid var(--line);padding:14px 0}
+.imp-sez:first-of-type{border-top:0;padding-top:0}
+.imp-sez h3{margin:0 0 4px;font-size:14px;font-weight:800}
+.imp-sez p{margin:0 0 10px;font-size:12.5px;color:var(--ink2);line-height:1.45}
+.imp-az{display:flex;flex-wrap:wrap;gap:8px}
+.imp-az a,.imp-az button{border:1px solid var(--line);background:rgba(255,255,255,.08);color:#fff;border-radius:99px;padding:0 14px;min-height:40px;font-size:13px;font-weight:700;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center}
+.imp-az .rosso{color:#ffb3a1}
+.bk-lista{display:flex;flex-direction:column;gap:6px;margin:0 0 10px;max-height:260px;overflow:auto}
+.bk-riga{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:12px;font-size:13px;font-weight:700}
+.bk-riga small{display:block;font-size:11px;font-weight:600;color:var(--ink2)}
+.bk-riga.sospetto{border-color:rgba(255,140,120,.55);color:#ffb3a1}
+.bk-riga button{border:1px solid var(--line);background:rgba(255,255,255,.08);color:#fff;border-radius:99px;padding:0 12px;min-height:34px;font-size:12px;font-weight:700;cursor:pointer;flex:none}
+.ev-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.ev-form .tutta{grid-column:1/-1}
+.ev-form label{display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:700;color:var(--ink2)}
+.ev-form input,.ev-form select,.ev-form textarea{height:44px;border-radius:12px;border:1px solid var(--line);background:rgba(0,0,0,.28);color:#fff;padding:0 12px;font:500 14px Manrope,sans-serif;outline:0;min-width:0;width:100%}
+.ev-form textarea{height:auto;padding:10px 12px;resize:vertical}
+.ev-form input:focus,.ev-form select:focus,.ev-form textarea:focus{border-color:var(--acc)}
+.ev-form input[type="date"],.ev-form input[type="time"]{-webkit-appearance:none;appearance:none;-webkit-min-logical-width:0;min-width:0;max-width:100%;display:block;text-align:left} /* iOS: il controllo nativo della data non sfonda la colonna */
+.ev-form input[type="date"]::-webkit-date-and-time-value{text-align:left;margin:0}
+
+.ev-form select option{background:#2a211c}
+.ev-form .riga-chk{flex-direction:row;align-items:center;gap:8px}
+.ev-form .riga-chk input{width:18px;height:18px;accent-color:var(--acc)}
+.nota-ev{font-size:13px;color:var(--ink2);margin:0 0 12px;line-height:1.45}
+#ev-err{color:#ffb3a1;margin:0}
+@media (max-width:700px){ .calv{gap:3px} .calv .g{min-height:58px;padding:4px;border-radius:10px} .ev-c{font-size:0;height:6px;padding:0;border-radius:3px} .ev-piu{display:none} .pannello .box{padding:16px;border-radius:22px} }
+
+/* app dentro la Dashboard: Bilancio (il riquadro già aperto), Mezzi, Palestra */
+/* schermo largo e schermata con molti dati (l'app lo chiede con Moto.largo): la scheda si allarga quanto serve (applicaLargo) */
+@media (prefers-reduced-motion:reduce){ .wrap{transition:none} }
+.app-vista{display:none;flex:999 1 560px;min-width:0;border-radius:28px;overflow:hidden;position:relative;height:calc(100vh - 40px - var(--sat))}
+body.in-app .app-vista{display:block}
+body.in-app main, body.in-app aside, body.in-app .seg{display:none}
+body.in-app{overflow:hidden}
+.app-vista iframe{position:absolute;inset:0;width:100%;height:100%;border:0;display:none;background:transparent}
+.app-vista iframe.on{display:block}
+#bil.in-vista{opacity:1;pointer-events:auto;z-index:6;border-radius:28px;transform:none}
+body.tastiera .app-vista, body.tastiera #bil.in-vista{z-index:13} /* tastiera aperta: l'app copre la barra in alto (più spazio per scrivere) */
+
+/* attesa e sblocco di Bilancio */
+.stato{position:fixed;left:50%;bottom:calc(20px + var(--sab));transform:translateX(-50%);z-index:20;border-radius:99px;padding:10px 16px;font-size:12.5px;font-weight:600;display:none}
+.stato.on{display:block}
+#bil{position:fixed;inset:0;width:100%;height:100%;border:0;opacity:0;pointer-events:none;z-index:-2}
+.sblocco{position:fixed;inset:0;z-index:30;display:none;align-items:center;justify-content:center;padding:20px;background:rgba(10,8,6,.55)}
+.sblocco.on{display:flex}
+.sblocco .box{width:min(480px,100%);height:min(720px,100%);border-radius:28px;overflow:hidden;display:flex;flex-direction:column}
+.sblocco .box header{display:flex;justify-content:space-between;align-items:center;padding:12px 14px 12px 18px;font-weight:800;font-size:14px}
+.sblocco .box header button{width:44px;height:44px;border-radius:99px;border:0;background:rgba(255,255,255,.12);cursor:pointer}
+.sblocco .slot{flex:1 1 auto;background:#fff}
+/* il riquadro di Bilancio non si sposta (si ricaricherebbe): si posiziona sopra la finestra */
+#bil.mostra{left:50%;top:50%;right:auto;bottom:auto;transform:translate(-50%,-50%) translateY(34px);width:min(480px,calc(100vw - 40px));height:min(652px,calc(100vh - 108px));opacity:1;pointer-events:auto;z-index:31;border-radius:0 0 28px 28px}
+
+@media (max-width:700px){
+  .wrap{padding:calc(12px + var(--sat)) 12px 14px;gap:12px}
+  nav{flex-direction:row;flex:1 1 100%;position:static;padding:8px;border-radius:22px;overflow-x:auto}
+  .navbtn .tip{display:none}
+  .nav-spazio{min-height:0;min-width:8px}
+  main{padding:16px;border-radius:24px}
+  aside{max-width:none;border-radius:24px}
+  .head h1{font-size:21px}
+  .head > div:first-child{flex:1 1 100% !important}
+  .cerca{flex:1 1 0}
+  .tiles{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .tile{padding:13px}
+  .tile .v{font-size:17px}
+}
+
+/* stile "Glassy V5": foto panoramica dietro, vetro scuro poco trasparente, menu a pillole in alto, dock a sinistra */
+body{background:#2a201a}
+body::before{background:url(comune/sfondo.svg) center/cover no-repeat !important}
+.glass{background:rgba(30,18,10,.42) !important;border:1px solid rgba(255,255,255,.20) !important;-webkit-backdrop-filter:blur(22px) saturate(150%) !important;backdrop-filter:blur(22px) saturate(150%) !important;box-shadow:0 10px 40px rgba(20,10,0,.18), inset 0 1px 0 rgba(255,255,255,.28) !important}
+.wrap{padding:calc(84px + var(--sat)) 24px calc(24px + var(--sab)) 92px !important}
+nav{position:fixed !important;left:18px;top:50%;transform:translateY(-50%);border-radius:99px !important;padding:10px 6px !important;gap:6px !important;align-self:auto !important}
+nav .brand,nav .nav-spazio{display:none}
+.navbtn{width:38px !important;height:38px !important;border-radius:99px !important;color:rgba(255,255,255,.85) !important}
+.navbtn.on{background:#fff !important;color:#1d1a18 !important;box-shadow:0 6px 18px rgba(0,0,0,.25) !important}
+.seg{display:none !important}
+main,aside{border-radius:30px !important}
+.head h1{text-shadow:0 2px 16px rgba(60,30,10,.35)}
+.head p{color:rgba(255,255,255,.85)}
+.cerca label{background:rgba(255,255,255,.14);border-color:rgba(255,255,255,.25)}
+.tile,.mezzo{background:linear-gradient(rgba(30,18,10,.42),rgba(30,18,10,.42)),rgba(255,255,255,.04) !important;color:#fff !important;border:1px solid rgba(255,255,255,.22)}
+.tile .tile-h small{color:rgba(255,255,255,.88) !important}
+.tile .tile-h span{color:#ffd2ad !important}
+.tile .v{color:#fff !important}
+.tile .s{color:rgba(255,255,255,.78) !important}
+.tile .s .pos{color:#a6f2c9 !important} .tile .s .neg{color:#ffc0b0 !important}
+.tile .ico{color:#ffd2ad}
+.mesi,.leg{color:rgba(255,255,255,.8) !important}
+.grafico svg g{stroke:rgba(255,255,255,.18)}
+.giornale{background:rgba(20,32,44,.28) !important;border:1px solid rgba(255,255,255,.22) !important}
+.mezzo .p{background:rgba(255,255,255,.18) !important;color:#fff}
+.mezzo .tot{background:rgba(255,255,255,.2) !important}
+.mezzo.acc{background:rgba(242,113,28,.55) !important}
+.cal,.stats div,.item{background:rgba(255,255,255,.10) !important;border-color:rgba(255,255,255,.14) !important}
+/* barra in alto */
+/* sotto l'orologio e la batteria quando è aperta a tutto schermo (iPhone e iPad): su computer --sat è 0 */
+.v5top{position:fixed;left:0;right:0;top:0;height:calc(64px + var(--sat));display:flex;align-items:center;justify-content:space-between;padding:var(--sat) 18px 0;z-index:12;
+  background:linear-gradient(180deg,rgba(25,18,13,.32),rgba(25,18,13,.06));-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}
+.v5top .grp{display:flex;gap:8px;align-items:center}
+.v5top .t{width:38px;height:38px;border-radius:99px;border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.12);color:#fff;display:grid;place-items:center;cursor:pointer;position:relative}
+.v5top .t b{position:absolute;top:-2px;right:-2px;width:15px;height:15px;border-radius:99px;background:#F2711C;font-size:9px;display:grid;place-items:center}
+.v5top .p{height:36px;border-radius:99px;border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.12);color:#fff;display:flex;align-items:center;gap:7px;padding:0 14px;font:600 12.5px Manrope,sans-serif;cursor:pointer}
+.v5top .p.on{background:#fff;color:#1d1a18}
+.v5top .av{width:38px;height:38px;border-radius:99px;background:#F2711C;color:#fff;font-weight:800;display:grid;place-items:center;border:2px solid rgba(255,255,255,.6)}
+@media (max-width:700px){
+  .wrap{padding:76px 12px 90px !important}
+  nav{top:auto !important;bottom:14px;left:50% !important;transform:translateX(-50%) !important;flex-direction:row !important;width:auto !important;flex:0 0 auto !important}
+  .v5top .centro{display:none}
+}
+
+:root{color-scheme:dark}
+/* leggibilità sulle parti chiare del cielo */
+.tile .tile-h small,.tile .tile-h span,.tile .s,.head p,.mesi,.leg,.item .t span,.item .t small,.sez h2{text-shadow:0 1px 8px rgba(40,20,5,.35)}
+.tile .tile-h span,.item .t span{color:#ffe0c7 !important}
+.leg span{color:#fff}
+.v5top .t b[hidden]{display:none}
+a.p{text-decoration:none}
+.v5top .p:hover,.v5top .t:hover{background:rgba(255,255,255,.22)}
+.v5top .p.on:hover{background:#fff}
+.v5top .brand5{font-weight:800;color:#fff;font-size:15px;margin-left:4px;text-shadow:0 1px 10px rgba(0,0,0,.35)}
+@media (max-width:700px){ .v5top .brand5{display:none} .tile.grande .v{font-size:24px} }
+/* telefono: riquadri tutti uguali (titolo, cifra, dettaglio), niente decorazioni, barra in alto sotto la Dynamic Island */
+@media (max-width:700px){
+  .v5top{height:calc(56px + var(--sat));padding:var(--sat) 14px 0}
+  .v5top .av,.v5top .t{width:36px;height:36px}
+  .wrap{padding:calc(66px + var(--sat)) 12px calc(92px + var(--sab)) !important}
+  nav{bottom:calc(12px + var(--sab)) !important}
+  main{padding:16px 14px !important;gap:14px}
+  .head h1{font-size:20px}
+  .head p{font-size:12.5px;margin-top:2px}
+  .cerca label{height:42px}
+  .tiles{gap:8px !important}
+  .tile{padding:12px 13px !important;gap:4px !important;border-radius:16px !important}
+  .tile .tile-h span,.tile .bars,.tile .ico{display:none}
+  .tile .tile-h small{font-size:11.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tile .v,.tile.grande .v{font-size:21px !important;margin-top:6px !important;letter-spacing:-.02em}
+  .tile.testo .v{font-size:15px !important;line-height:1.25}
+  .tile .s,.tile.grande .s{font-size:11.5px;line-height:1.35}
+  .tile .molo-t{height:auto;margin-top:4px}
+  .tile .molo-t b{font-size:26px}
+  .grafico svg{height:120px}
+  .mesi{font-size:9.5px}
+  .app-vista iframe{width:calc(100% / .9);height:calc(100% / .9);transform:scale(.9);transform-origin:0 0}
+  /* l'app sta ferma tra la barra in alto e il fondo: su iPhone la pagina sotto può scorrere anche con overflow:hidden,
+     e la parte alta dell'app (es. "Cambia veicolo" di Mezzi) finiva nascosta dietro la barra */
+  body.in-app .app-vista{position:fixed;left:12px;right:12px;top:calc(64px + var(--sat));bottom:max(6px, calc(var(--sab) - 20px));height:auto !important;flex:none}
+  nav.glass{background:rgba(30,20,14,.62) !important}
+  .mezzo{padding:12px 13px;gap:10px}
+  .mezzo .tot{width:52px;height:52px;font-size:10px}
+  .mezzo .s{font-size:11.5px}
+  .giornale svg{width:26px;height:26px}
+  aside{padding:16px 14px !important}
+}
+/* il passo che manca all'accesso automatico a Google */
+.passo-auto{flex:1 1 100%;order:3;text-align:left;border:1px dashed rgba(255,176,122,.6) !important;background:rgba(242,113,28,.12) !important;color:#ffd2ad !important;border-radius:12px !important;padding:8px 10px !important;font-size:12px !important;line-height:1.35;height:auto !important}
+/* cifre nascoste (pulsante con l'occhio): gli importi della panoramica si sfocano */
+#occhio .chiuso, body.cifre-nascoste #occhio .aperto{display:none}
+body.cifre-nascoste #occhio .chiuso{display:block}
+body.cifre-nascoste #occhio{background:rgba(255,255,255,.28)}
+body.cifre-nascoste :is(.tile:not(.testo) .v, .tile:not(.testo) .s, #gb-tot, #gb-chips, .mezzo .tot, .item .amt, .ris b, #calv-giorno .amt){filter:blur(9px);-webkit-user-select:none;user-select:none;transition:filter .2s}
+/* molo delle navi: numero grande nel riquadro Lavoro, etichetta arancione in agenda */
+.molo-t{height:34px;display:flex;align-items:baseline;gap:8px}
+.molo-t small{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#ffd2ad}
+.molo-t b{font-size:34px;line-height:1;font-weight:700;color:#fff}
+.molo-b{flex:0 0 auto;width:68px;box-sizing:border-box;padding:6px 4px;border-radius:12px;background:#F2711C;color:#fff;display:flex;flex-direction:column;align-items:center;line-height:1}
+.molo-b.prev{outline:2px dotted rgba(255,255,255,.65);outline-offset:-4px}
+.molo-b.attesa{background:rgba(242,113,28,.18);border:1px dashed rgba(255,176,122,.7);color:#ffd2ad}
+.molo-b small{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;opacity:.9}
+.molo-b b{font-size:20px;margin-top:3px}
+.molo-ev{display:flex;align-items:center;gap:12px;margin:0 0 14px;padding:10px 12px;border-radius:16px;background:rgba(242,113,28,.14);border:1px solid rgba(242,113,28,.35)}
+.molo-ev b{display:block;font-size:14px} .molo-ev span{font-size:12px;color:var(--ink2)}
+.molo-ev .molo-b{width:auto;min-width:68px;padding:6px 10px} .molo-ev .molo-b b{font-size:26px}
+.molo-b.lungo b{font-size:15px;margin-top:5px} .molo-ev .molo-b.lungo b{font-size:20px}
+
+/* rifiniture dal controllo a 1440 / 1024 / 768 / 390 px */
+main{container-type:inline-size}
+@container (max-width:810px){ .tiles{grid-template-columns:repeat(2,minmax(0,1fr))} }
+.tile .s .sep{opacity:.7}
+@media (max-width:1180px) and (min-width:701px){ .v5top .p{padding:0 11px} }
+@media (max-width:1040px) and (min-width:701px){
+  .v5top .p{width:38px;padding:0;justify-content:center;font-size:0;gap:0}
+  .v5top .brand5{display:none}
+}
+.tile .tile-h small,.tile .tile-h span,.tile .s,.head p,.mesi,.leg,.item .t span,.item .t small,.sez h2{text-shadow:0 1px 3px rgba(40,20,5,.4)}
+@media (max-width:700px){
+  .tile .s .pos,.tile .s .neg{display:block} .tile .s .sep{display:none}
+  .giornale{min-height:0}
+  /* dentro un'app: niente dock in basso (l'app ha già la sua barra); si cambia app dalle icone in alto */
+  body.in-app nav{display:none !important}
+  body.in-app .v5top .centro{display:flex;gap:6px}
+  body.in-app .v5top .centro .p{width:38px;padding:0;justify-content:center;font-size:0;gap:0}
+  body.in-app .v5top .grp:last-child{display:none}
+}
+</style>
+</head>
+<body>
+<div id="sab-sonda" aria-hidden="true" style="position:fixed;left:0;bottom:0;width:0;height:env(safe-area-inset-bottom);visibility:hidden;pointer-events:none"></div>
+<header class="v5top" aria-label="Barra della Dashboard">
+  <div class="grp"><span class="av" aria-hidden="true">D</span><span class="brand5">Dashboard</span></div>
+  <div class="grp centro" role="navigation" aria-label="App">
+    <a class="p on" href="#" aria-label="Panoramica"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1z"/></svg>Panoramica</a>
+    <a class="p" href="bilancio/" aria-label="Bilancio"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6" width="19" height="13" rx="3"/><path d="M16 12.5h2.5"/></svg>Bilancio</a>
+    <a class="p" href="palestra/" aria-label="Palestra"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 6.5v11M17.5 6.5v11M3 9.5v5M21 9.5v5M6.5 12h11"/></svg>Palestra</a>
+    <a class="p" href="lavoro/" aria-label="Lavoro"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2.5"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M3 13h18"/></svg>Lavoro</a>
+    <button class="p" type="button" onclick="apriImpostazioni()" aria-label="Impostazioni"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>Impostazioni</button>
+  </div>
+  <div class="grp">
+    <button class="t" type="button" id="occhio" onclick="nascondiCifre()" aria-label="Nascondi le cifre" aria-pressed="false"><svg class="aperto" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg><svg class="chiuso" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3l18 18"/><path d="M10.6 5.1A10.9 10.9 0 0 1 12 5c6.4 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.1M6.6 6.6C3.9 8.4 2 12 2 12s3.6 7 10 7a9.8 9.8 0 0 0 5.4-1.6"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></svg></button>
+    <button class="t" type="button" onclick="apriCalendario()" aria-label="Calendario"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg></button>
+    <button class="t" type="button" onclick="apriCalendario()" aria-label="Scadenze dei prossimi 7 giorni"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 8 3 8H3s3-1 3-8"/><path d="M10 20a2 2 0 0 0 4 0"/></svg><b id="nbadge" hidden></b></button>
+    <button class="t" type="button" onclick="dashVai('');setTimeout(()=>$('q').focus(),50)" aria-label="Cerca"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg></button>
+    <button class="t" type="button" onclick="bloccaTutto()" aria-label="Blocca"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></button>
+  </div>
+</header>
+<div class="wrap">
+
+<nav class="glass" aria-label="Sezioni">
+  <div class="brand" aria-hidden="true">G</div>
+  <a class="navbtn on" href="#" aria-label="Panoramica" aria-current="page"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg><span class="tip">Panoramica</span></a>
+  <a class="navbtn" href="bilancio/" aria-label="Bilancio"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.5" y="6" width="19" height="13" rx="3"/><path d="M16 12.5h2.5"/><path d="M5 6l9-3 2 3"/></svg><span class="tip">Bilancio</span></a>
+  <a class="navbtn" href="palestra/" aria-label="Palestra"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 6.5v11M17.5 6.5v11M3 9.5v5M21 9.5v5M6.5 12h11"/></svg><span class="tip">Palestra</span></a>
+  <a class="navbtn" href="lavoro/" aria-label="Lavoro"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2.5"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M3 13h18"/></svg><span class="tip">Lavoro</span></a>
+  <button class="navbtn" type="button" onclick="apriCalendario()" aria-label="Calendario"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg><span class="tip">Calendario</span></button>
+  <button class="navbtn" disabled aria-label="Altre app, in arrivo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span class="tip">Altre app, in arrivo</span></button>
+  <div class="nav-spazio"></div>
+  <button class="navbtn" type="button" onclick="apriImpostazioni()" aria-label="Impostazioni"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg><span class="tip">Impostazioni</span></button>
+</nav>
+
+<section class="app-vista glass" id="app-vista" aria-label="App"></section>
+
+<main class="glass">
+  <div class="head">
+    <div style="flex:1 1 260px">
+      <h1 id="saluto">Ciao</h1>
+      <p id="sotto">Ecco come stanno le tue finanze, il lavoro e la palestra</p>
+    </div>
+    <div class="cerca">
+      <label><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="color:var(--ink3)"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+        <input id="q" type="search" placeholder="Cerca spese, entrate, voci…" aria-label="Cerca tra i movimenti di Bilancio" autocomplete="off"></label>
+      <div class="risultati glass" id="ris"></div>
+    </div>
+  </div>
+
+  <div class="tiles" id="tiles"></div>
+
+  <div class="riga2">
+    <a class="tile grafico" href="bilancio/" aria-label="Entrate e uscite: apri Bilancio">
+      <div class="tile-h"><small style="font-size:14px" id="g-tit">Entrate vs uscite</small><span>Bilancio</span></div>
+      <svg id="g" viewBox="0 0 600 180" preserveAspectRatio="none" role="img" aria-label="Grafico di entrate e uscite per mese"></svg>
+      <div class="mesi"><span>Gen</span><span>Feb</span><span>Mar</span><span>Apr</span><span>Mag</span><span>Giu</span><span>Lug</span><span>Ago</span><span>Set</span><span>Ott</span><span>Nov</span><span>Dic</span></div>
+      <div class="leg"><span><b style="color:var(--acc)">●</b> Uscite</span><span><b style="color:#8a7f77">●</b> Entrate</span></div>
+    </a>
+    <a class="giornale" href="bilancio/" aria-label="Spese del mese per categoria: apri Bilancio" style="color:inherit;text-decoration:none">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:10px">
+        <div><div style="font-size:15px;font-weight:800" id="cat-tit">Spese del mese</div><div style="font-size:11.5px;color:var(--ink2);margin-top:3px">Per categoria</div></div>
+        <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#ffb07a" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-9-9v9z"/><path d="M12 3a9 9 0 0 1 9 9h-9z"/></svg>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:6px">
+        <div class="mono" style="font-size:24px;font-weight:700" id="gb-tot">–</div>
+        <div style="display:flex;flex-direction:column;gap:5px;margin-top:4px;font-size:12.5px" id="gb-chips"></div>
+      </div>
+    </a>
+  </div>
+
+
+</main>
+
+<aside class="glass" aria-label="Agenda">
+  <div class="profilo">
+    <div class="avatar" aria-hidden="true">G</div>
+    <div style="flex:1 1 auto"><div style="font-size:14px;font-weight:800" id="nome-prof">Dashboard</div><div style="font-size:11.5px;color:var(--ink2)" id="aggiornato">Dashboard personale</div></div>
+    <button class="blocca" type="button" onclick="bloccaTutto()" aria-label="Blocca l'account" title="Blocca"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg></button>
+  </div>
+  <div class="stats" id="stats"></div>
+  <div class="cal">
+    <div class="cal-h"><b style="font-size:13px" id="cal-tit"></b>
+      <div style="display:flex;gap:6px"><button aria-label="Mese precedente" onclick="calSposta(-1)">‹</button><button aria-label="Mese successivo" onclick="calSposta(1)">›</button></div></div>
+    <div class="cal-g" id="cal"></div>
+    <div class="cal-leg"><span><b style="color:var(--acc)">●</b> oggi</span><span><b style="color:var(--ok)">●</b> rate e scadenze</span><span><b style="color:var(--goo)">●</b> Google</span></div>
+    <div class="goo-bar" id="goo"></div>
+  </div>
+  <div class="sez" id="agenda"><h2>In programma</h2></div>
+  <div class="agenda" id="lista"></div>
+</aside>
+
+</div>
+<div class="seg glass" role="navigation" aria-label="App">
+  <a class="on" href="#">Panoramica</a><a href="bilancio/">Bilancio</a><a href="palestra/">Palestra</a>
+</div>
+
+<div class="pannello" id="p-cal" onclick="if(event.target===this) chiudiPannello()"><div class="box glass" role="dialog" aria-modal="true" aria-labelledby="calv-tit">
+  <div class="pann-h"><h2 id="calv-tit">Calendario</h2><div style="display:flex;gap:6px"><button type="button" aria-label="Mese precedente" onclick="calSposta(-1)">‹</button><button type="button" aria-label="Questo mese" onclick="calSposta(-calOff)" style="width:auto;padding:0 12px;font-size:12px;font-weight:700">Oggi</button><button type="button" aria-label="Mese successivo" onclick="calSposta(1)">›</button><button type="button" aria-label="Chiudi" onclick="chiudiPannello()">✕</button></div></div>
+  <div class="calv" id="calv"></div>
+  <div class="leg-c"><span><i style="background:rgba(242,113,28,.6)"></i>Bilancio</span><span><i style="background:rgba(160,120,230,.7)"></i>Palestra</span><span><i style="background:var(--goo)"></i>Google</span></div>
+  <div class="giorno-sel" id="calv-giorno"></div>
+</div></div>
+ <div class="pannello" id="p-ev" style="z-index:45" onclick="if(event.target===this) chiudiEvento()"><div class="box glass stretto" role="dialog" aria-modal="true" aria-labelledby="ev-tit">
+  <div class="pann-h"><h2 id="ev-tit">Evento</h2><button type="button" aria-label="Chiudi" onclick="chiudiEvento()">✕</button></div>
+  <div id="ev-corpo"></div>
+</div></div>
+<div class="pannello" id="p-imp" onclick="if(event.target===this) chiudiPannello()"><div class="box glass stretto" role="dialog" aria-modal="true" aria-labelledby="imp-tit">
+  <div class="pann-h"><h2 id="imp-tit">Impostazioni</h2><button type="button" aria-label="Chiudi" onclick="chiudiPannello()">✕</button></div>
+  <div id="imp-corpo"></div>
+</div></div>
+<div class="stato glass" id="stato" role="status">Apro Bilancio…</div>
+<div class="sblocco" id="sblocco" role="dialog" aria-modal="true" aria-label="Bilancio">
+  <div class="box glass">
+    <header><span>Bilancio</span><button aria-label="Chiudi" onclick="chiudiSblocco()">✕</button></header>
+    <div class="slot" id="slot"></div>
+  </div>
+</div>
+<iframe id="bil" title="Bilancio (in background)" aria-hidden="true" tabindex="-1"></iframe>
+
+<script src="comune/cassaforte.js"></script>
+<script src="comune/programma.js"></script>
+<script>
+// Google Calendar: ID client OAuth "Applicazione web" del proprio progetto Google Cloud (comune/config.js, README punto 6).
+// Non è un segreto. Vuoto = Google Calendar non ancora configurato.
+const GCAL_CLIENT_ID = (window.CONFIG_APP || {}).googleClientId || '';
+// nome di chi usa la Dashboard (comune/config.js): saluto, profilo e iniziale
+const NOME = String((window.CONFIG_APP || {}).nome || '').trim();
+if(NOME){
+  document.querySelectorAll('.av, .brand, .avatar').forEach(e => e.textContent = NOME[0].toUpperCase());
+  document.querySelector('.brand5').textContent = NOME; document.getElementById('nome-prof').textContent = NOME;
+}
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// testi che arrivano da fuori (eventi e calendari di Google: chiunque può invitarti a un evento col titolo che vuole):
+// i caratteri che servono a scrivere codice HTML diventano innocui già all'arrivo, ovunque finiscano poi
+const sicuro = v => String(v ?? '').replace(/[<>"'`]/g, c => ({'<':'‹', '>':'›', '"':'”', "'":'’', '`':'ʼ'})[c]);
+// come in Bilancio: punto per le migliaia anche a 4 cifre (1.520 €), virgola per i decimali
+const migliaia = n => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+const eur0 = v => (v<0?'-':'') + migliaia(Math.abs(Math.round(v))) + ' €';
+const eur2 = v => { const [i, d] = Math.abs(v).toFixed(2).split('.'); return (v<0?'-':'') + migliaia(i) + ',' + d + ' €'; };
+const fmtD = s => { const [y,m,d] = s.split('-'); return `${+d} ${['gen','feb','mar','apr','mag','giu','lug','ago','set','ott','nov','dic'][m-1]}${y!=new Date().getFullYear()?' '+y:''}`; };
+// giorni da oggi (data del telefono, non quella UTC: dopo mezzanotte "domani" è già domani)
+const giorniA = s => { const o = new Date(); return Math.round((new Date(s+'T12:00') - new Date(o.getFullYear(), o.getMonth(), o.getDate(), 12))/864e5); };
+
+/* ---- Lettura da Bilancio ----
+   Gira DENTRO il riquadro di Bilancio (eval nel suo contesto): usa le sue funzioni, così i numeri sono gli stessi dell'app. */
+function estrai(){
+  const oggi = today(), ym = thisMonth(), y = now.getFullYear(), mese = now.getMonth();
+  const sumA = (l, f) => l.reduce((a, x) => a + f(x), 0);
+  const nelMese = (t, m) => t.d.slice(0,7) === m;
+  const mesi = Array.from({length:12}, (_, i) => `${y}-${String(i+1).padStart(2,'0')}`);
+  const serieU = mesi.map(m => sumA(S.tx.filter(t => t.t==='u' && nelMese(t,m)), spesa));
+  const serieE = mesi.map(m => sumA(S.tx.filter(t => t.t==='e' && nelMese(t,m)), t => t.amt));
+  // da pagare nel mese, come la card di Bilancio: rate, abbonamenti e spese fisse
+  const daPagare = [
+    ...rateDelMese(ym).map(x => ({amt:x.amt, paid:x.paid})),
+    ...abboDelMese(ym).map(x => ({amt:x.amt, paid:x.paid})),
+  ];
+  const patr = sumA(S.conti, c => c.v), liq = sumA(S.conti.filter(c => c.g==='Banche' || c.g==='Cash'), c => c.v);
+  // spese del mese per categoria, dalla più alta
+  const perCat = {}; S.tx.filter(t => t.t==='u' && nelMese(t, ym)).forEach(t => { const k = t.cat || 'Altro'; perCat[k] = (perCat[k]||0) + spesa(t); });
+  // in programma: prossima rata di ogni piano, rinnovi degli abbonamenti
+  const agenda = [
+    ...S.rate.filter(r => r.first && residue(r) > 0).map(r => ({d:dueDate(r, pagate(r)), titolo:(r.prod||r.tipo||'Rata') + (r.tipo && r.prod ? ' · '+r.tipo : ''), app:'Bilancio · rate', amt:quota(r, pagate(r)), tag:'RATA'})),
+    ...(S.abbo||[]).filter(a => a.attivo!==false && a.next).map(a => ({d:a.next, titolo:a.n, app:'Bilancio · abbonamenti', amt:a.costo, tag:'ABB'}))
+  ].filter(x => x.d && x.d >= oggi).sort((a,b) => a.d.localeCompare(b.d));
+  // giorni con rate o scadenze, per il calendario (anche quelle già pagate)
+  const eventi = [...new Set([
+    ...S.rate.flatMap(r => r.first ? Array.from({length:r.n - r.fi}, (_, i) => dueDate(r, r.fi + i)) : []),
+    ...(S.abbo||[]).filter(a => a.attivo!==false && a.next).map(a => a.next),
+    ...S.tx.filter(t => t.abid).map(t => t.d)])].filter(Boolean);
+  const eventiDett = [
+    ...S.rate.flatMap(r => r.first ? Array.from({length:r.n - r.fi}, (_, i) => ({d:dueDate(r, r.fi + i), titolo:(r.prod||r.tipo||'Rata') + (r.tipo && r.prod ? ' · '+r.tipo : ''), app:'Bilancio · rate', amt:quota(r, r.fi + i), paid: r.fi + i < pagate(r)})) : []),
+    ...(S.abbo||[]).filter(a => a.attivo!==false && a.next).map(a => ({d:a.next, titolo:a.n, app:'Bilancio · abbonamenti', amt:a.costo, paid:false})),
+    ...S.tx.filter(t => t.abid).map(t => ({d:t.d, titolo:(S.abbo||[]).find(a => a.id===t.abid)?.n || t.sub || 'Abbonamento', app:'Bilancio · abbonamenti', amt:spesa(t), paid:true}))
+  ].filter(x => x.d);
+  const storico = (S.storico||[]).slice(-8).map(f => f.tot).concat([patr]);
+  return {
+    oggi, mese, anno:y, nomeMese:MESI[mese],
+    entrate:serieE[mese], uscite:serieU[mese], serieU, serieE,
+    daPagare: sumA(daPagare.filter(x => !x.paid), x => x.amt), pagato: sumA(daPagare.filter(x => x.paid), x => x.amt), nDaPagare: daPagare.filter(x => !x.paid).length,
+    patr, liq, storico,
+    perCat: Object.entries(perCat).filter(x => x[1] > 0).sort((a,b) => b[1]-a[1]).slice(0, 5).map(([cat, v]) => ({cat, v})), agenda: agenda.slice(0, 7), eventi, eventiDett,
+    nConti: S.conti.length, nRate: S.rate.filter(r => residue(r) > 0).length, nAbbo: (S.abbo||[]).filter(a => a.attivo!==false).length
+  };
+}
+function cerca(q){
+  q = q.toLowerCase();
+  return S.tx.filter(t => (t.t==='u' || t.t==='e') && [t.cat, t.sub, t.det, t.note].join(' ').toLowerCase().includes(q))
+    .sort((a,b) => b.d.localeCompare(a.d)).slice(0, 8)
+    .map(t => ({d:t.d, testo:[t.sub||t.cat, t.det].filter(Boolean).join(' · '), cat:t.cat, amt:t.t==='e' ? t.amt : -spesa(t)}));
+}
+
+const bil = $('bil');
+let D = null, pronto = false, calOff = 0;
+const W = () => bil.contentWindow;
+/* Funzioni che lavorano sui dati di Bilancio (S, cloud…): la Dashboard le mette dentro la pagina di Bilancio con un piccolo
+   script (stesso sito) e poi le chiama. Niente eval, così la Content-Security-Policy può vietarlo a chiunque. */
+function ponte(){
+  const w = W(); if(!w || !w.document || !w.document.head) return null;
+  if(!w.__dash){
+    const sc = w.document.createElement('script');
+    sc.textContent = 'window.__dash = { pronto: () => (!CLOUD || !!cloud.key) && !!(S && S.carte), haMeta: () => !!cloud.meta, estrai: ' + estrai.toString() + ', cerca: ' + cerca.toString() + ' };';
+    w.document.head.appendChild(sc);
+  }
+  return w.__dash || null;
+}
+function bilancioPronto(){
+  try { const p = ponte(); return !!(p && p.pronto()); } catch(e){ return false; }
+}
+// Bilancio chiede accesso o passphrase (o si è fermato su un errore); mentre carica si aspetta, fino a 20 secondi
+function bloccato(){
+  try { const g = W().document.getElementById('gate'); return !!g && g.classList.contains('on') && (g.dataset.st !== 'loading' || attese > 20) && !bilancioPronto(); } catch(e){ return false; }
+}
+function leggi(){
+  try { D = ponte().estrai(); disegna(); } catch(e){ console.error(e); }
+}
+
+/* ---- Disegno ---- */
+function barre(vals){
+  const v = vals.map(Math.abs), mx = Math.max(1, ...v);
+  return `<div class="bars" aria-hidden="true">${v.map(x => `<i style="height:${Math.max(3, Math.round(x/mx*34))}px"></i>`).join('')}</div>`;
+}
+function disegna(){
+  if(!D) return;
+  const ora = new Date().getHours();
+  $('saluto').textContent = (ora < 13 ? 'Buongiorno' : ora < 18 ? 'Buon pomeriggio' : 'Buonasera') + (NOME ? ', ' + NOME : '');
+  $('sotto').textContent = `${D.nomeMese} ${D.anno}: ecco come stanno le tue finanze, il lavoro e la palestra`;
+  const saldo = D.entrate - D.uscite, ultimi = (a) => a.slice(Math.max(0, D.mese-8), D.mese+1);
+  const saldi = ultimi(D.serieE.map((e, i) => e - D.serieU[i]));
+  const agenda = tuttaAgenda();
+  const tiles = [
+    {href:'bilancio/', lab:`Saldo di ${D.nomeMese.toLowerCase()}`, app:'Bilancio', bars:barre(saldi), v:eur0(saldo), sHtml:`<span class="pos">entrate ${eur0(D.entrate)}</span><span class="sep"> · </span><span class="neg">uscite ${eur0(D.uscite)}</span>`},
+    {href:'bilancio/', lab:'Patrimonio', app:'Bilancio', cl:'grande', v:eur0(D.patr), s:`liquidità ${eur0(D.liq)}`},
+    tilePalestra(), tileLavoro()
+  ];
+  $('tiles').innerHTML = tiles.map(t => `<a class="tile${t.cl ? ' ' + t.cl : ''}" href="${esc(t.href)}"${t.blank ? ' target="_blank" rel="noopener"' : ''}${t.on ? ` onclick="event.preventDefault();${t.on}"` : ''}><div class="tile-h"><small>${esc(t.lab)}</small><span>${esc(t.app)}</span></div>${t.bars || (t.ico ? `<div class="ico">${t.ico}</div>` : '')}<div class="v${t.cl === 'testo' ? '' : ' mono'}">${esc(t.v)}</div><div class="s">${t.sHtml || esc(t.s)}</div></a>`).join('');
+  // grafico: uscite (arancione) ed entrate (tratteggio) dell'anno
+  $('g-tit').textContent = `Entrate vs uscite · ${D.anno}`;
+  const mx = Math.max(1, ...D.serieU, ...D.serieE), x = i => 25 + i*(550/11), y = v => 165 - v/mx*145;
+  const linea = s => s.map((v, i) => `${i?'L':'M'}${x(i).toFixed(1)} ${y(v).toFixed(1)}`).join(' ');
+  $('g').innerHTML = `<g stroke="#ece7e2" stroke-width="1"><line x1="0" y1="20" x2="600" y2="20"/><line x1="0" y1="92" x2="600" y2="92"/><line x1="0" y1="165" x2="600" y2="165"/></g>
+    <g class="moto-traccia"><path d="${linea(D.serieU)} L${x(11)} 165 L${x(0)} 165 Z" fill="#F2711C" opacity=".10"/>
+    <path d="${linea(D.serieU)}" fill="none" stroke="#F2711C" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>
+    <path d="${linea(D.serieE)}" fill="none" stroke="#8a7f77" stroke-width="2" stroke-dasharray="5 6" stroke-linecap="round" vector-effect="non-scaling-stroke"/></g>
+    <circle class="moto-punto" cx="${x(D.mese)}" cy="${y(D.serieU[D.mese])}" r="5" fill="#F2711C" stroke="#fff" stroke-width="2"/>`;
+  // la prima volta che arrivano i dati il grafico si disegna; gli aggiornamenti dopo restano fermi
+  if(!graficoVisto && D.serieU.concat(D.serieE).some(v => v > 0)){ graficoVisto = true; Moto.disegna($('g')); }
+  // spese del mese per categoria (le 5 più alte)
+  $('cat-tit').textContent = 'Spese di ' + D.nomeMese.toLowerCase();
+  $('gb-tot').textContent = eur0(D.uscite);
+  $('gb-chips').innerHTML = D.perCat.length ? D.perCat.map(c => `<div style="display:flex;justify-content:space-between;gap:10px"><span style="color:var(--ink2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.cat)}</span><b class="mono">${eur0(c.v)}</b></div>`).join('') : '<span style="color:var(--ink2)">Nessuna spesa registrata questo mese</span>';
+  // pannello a destra
+  $('stats').innerHTML = [[D.nConti,'Conti'],[D.nRate,'Rate attive'],[D.nAbbo,'Abbonamenti']].map(([v,l]) => `<div><b class="mono">${v}</b><small>${l}</small></div>`).join('');
+  $('aggiornato').textContent = 'Aggiornata alle ' + new Date().toLocaleTimeString('it-IT', {hour:'2-digit', minute:'2-digit'});
+  disegnaCal();
+  agendaCorr = agenda;
+  $('lista').innerHTML = agenda.length ? agenda.map((a, i) => `<a class="item" href="${a.google ? '#' : hrefAgenda(a)}"${a.google ? ` onclick="event.preventDefault();apriNelCalendario(agendaCorr[${i}])"` : ''}><div class="tag${a.google ? ' goo' : ''}">${esc(a.tag)}</div>
+    <div class="t"><span>${esc(a.app)}</span><div>${esc(a.titolo)}</div><small>${fmtD(a.d)} · ${giorniA(a.d)===0?'oggi':giorniA(a.d)===1?'domani':'tra '+giorniA(a.d)+' giorni'}</small></div>
+    ${a.molo ? badgeMolo(a) : `<div class="amt mono">${a.amt!=null ? eur2(a.amt) : a.senzaImporto ? '' : '?'}</div>`}${a.google ? '' : pulsanteGoogle(a)}</a>`).join('') : '<div class="vuoto">Niente in programma.</div>';
+  disegnaGoogle();
+  const set7 = agenda.filter(a => giorniA(a.d) <= 7).length;
+  $('nbadge').hidden = !set7; $('nbadge').textContent = set7;
+}
+function disegnaCal(){
+  const base = new Date(D.anno, D.mese + calOff, 1), y = base.getFullYear(), m = base.getMonth();
+  $('cal-tit').textContent = base.toLocaleDateString('it-IT', {month:'long', year:'numeric'}).replace(/^./, c => c.toUpperCase());
+  const primo = (new Date(y, m, 1).getDay() + 6) % 7, ngiorni = new Date(y, m+1, 0).getDate();
+  const gev = new Set(GC.eventi.filter(e => +e.d.slice(0,4)===y && +e.d.slice(5,7)===m+1).map(e => +e.d.slice(8,10)));
+  const ev = new Set([...D.eventi, ...altriEventi().map(a => a.d)].filter(d => +d.slice(0,4)===y && +d.slice(5,7)===m+1).map(d => +d.slice(8,10)));
+  const oggi = new Date(D.oggi + 'T12:00');
+  let h = ['L','M','M','G','V','S','D'].map(w => `<div class="wd" aria-hidden="true">${w}</div>`).join('');
+  for(let i = 0; i < primo; i++) h += '<div></div>';
+  for(let d = 1; d <= ngiorni; d++){
+    const isOggi = oggi.getFullYear()===y && oggi.getMonth()===m && oggi.getDate()===d;
+    const tit = [ev.has(d) && 'Rate o scadenze', gev.has(d) && 'Google Calendar'].filter(Boolean).join(' · ');
+    h += `<div class="d${isOggi?' oggi':''}${ev.has(d)?' ev':''}${gev.has(d)?' gev':''}"${tit?` title="${tit}"`:''}>${d}</div>`;
+  }
+  $('cal').innerHTML = h;
+}
+function calSposta(k){ calOff += k; if(D) disegnaCal(); disegnaCalGrande(); if(gcalAttivi().length) gcalLeggi(); }
+
+/* ---- Google Calendar: uno o più account Google ----
+   Accesso con Google Identity Services (permessi calendar.events e calendarlist.readonly), un permesso per account.
+   I permessi restano solo in memoria per un'ora; gli eventi di Google non vengono salvati da nessuna parte.
+   Accesso automatico (facoltativo): con la chiave segreta del client, scritta una volta nelle impostazioni, Google dà anche un
+   permesso di lunga durata (refresh token). Chiave e permessi lunghi stanno solo nella cassaforte, cifrati come il resto
+   (voce dashboard/google): a ogni apertura, dopo lo sblocco, si chiede a Google un permesso fresco senza bisogno di clic.
+   Su questo dispositivo si ricordano solo gli indirizzi degli account collegati e i calendari scelti (preferenze, non dati).
+   Si scrive su Google solo quando lo chiedi: "+" su una scadenza (titolo e data, niente importi, con un codice dgid per
+   non crearla due volte) o un evento creato o modificato dal calendario. */
+const GC = { conti: [], eventi: [], collegate: new Set(), err: '', client: null, inAttesa: null, nomeLavoro: '' };
+const API_G = 'https://www.googleapis.com/calendar/v3';
+const apiEventi = id => `${API_G}/calendars/${encodeURIComponent(id)}/events`;
+const pref = (k, d) => { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch(e){ return d; } };
+const salvaPref = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch(e){} };
+const contiRicordati = () => pref('dg:gcalConti', []);
+const vistiDi = email => pref('dg:gcalVisti', {})[email] || ['primary'];
+// calendario di lavoro: 'indirizzo|id' scelto nelle impostazioni, '' = il principale del primo account
+const calLavoro = () => pref('dg:gcalLavoro2', '');
+const attivo = c => !!c.token && Date.now() < c.scade;
+const gcalAttivi = () => GC.conti.filter(attivo);
+function contoDi(email){ let c = GC.conti.find(x => x.email === email); if(!c){ c = { email, token: null, scade: 0, calendari: [] }; GC.conti.push(c); } return c; }
+contiRicordati().forEach(contoDi);
+const breve = email => String(email || '').split('@')[0];
+function caricaGis(){
+  if(window.google && google.accounts && google.accounts.oauth2) return Promise.resolve();
+  return new Promise((ok, ko) => { const sc = document.createElement('script'); sc.src = 'https://accounts.google.com/gsi/client'; sc.onload = ok; sc.onerror = () => ko(new Error('Google non raggiungibile')); document.head.appendChild(sc); });
+}
+// email: ricollega quell'account; senza: Google fa scegliere l'account (per aggiungerne uno)
+const SCOPE_G = 'https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.calendarlist.readonly';
+const erroreGis = e => { GC.err = e && e.type === 'popup_closed' ? 'finestra di Google chiusa' : (e && (e.message || e.type)) || 'accesso non riuscito'; disegnaGoogle(); };
+async function gcalCollega(email){
+  if(!GCAL_CLIENT_ID) return;
+  try { await caricaGis(); } catch(e){ GC.err = e.message; return disegnaGoogle(); }
+  GC.inAttesa = email || null;
+  // con la chiave segreta: codice da scambiare, che porta anche il permesso di lunga durata
+  if(AUTO.segreto) return google.accounts.oauth2.initCodeClient({ client_id: GCAL_CLIENT_ID, scope: SCOPE_G, ux_mode: 'popup', select_account: !email,
+    ...(email ? { login_hint: email } : {}), callback: r => gcalScambia(r), error_callback: erroreGis }).requestCode();
+  if(!GC.client) GC.client = google.accounts.oauth2.initTokenClient({ client_id: GCAL_CLIENT_ID, scope: SCOPE_G, callback: r => gcalToken(r), error_callback: erroreGis });
+  GC.client.requestAccessToken(email ? { prompt: '', login_hint: email } : { prompt: 'select_account consent' });
+}
+/* ---- accesso automatico ---- */
+const URL_TOKEN = 'https://oauth2.googleapis.com/token';
+const AUTO = { stato: 'carico', segreto: '', conti: {}, inCorso: false, bozza: '' }; // bozza: la chiave mentre la scrivi (le impostazioni si ridisegnano) // stato: carico | ok | regole | errore
+// rifiutato: quale operazione (la lettura e la scrittura hanno ciascuna la sua riga nelle regole)
+async function autoLeggi(){
+  try { const t = await Cassaforte.leggi('dashboard', 'google'), o = t ? JSON.parse(t) : {}; Object.assign(AUTO, { segreto: o.segreto || '', conti: o.conti || {}, stato: 'ok', rifiuto: '' }); }
+  catch(e){ AUTO.stato = e.code === 'permission-denied' ? 'regole' : 'errore'; AUTO.rifiuto = 'lettura'; console.warn('Google automatico', e); }
+}
+const autoSalva = () => Cassaforte.scrivi('dashboard', 'google', JSON.stringify({ segreto: AUTO.segreto, conti: AUTO.conti }))
+  .then(() => { AUTO.stato = 'ok'; AUTO.rifiuto = ''; })
+  .catch(e => { if(e.code === 'permission-denied'){ AUTO.stato = 'regole'; AUTO.rifiuto = 'scrittura'; } throw e; });
+// dopo aver pubblicato le regole: si ricontrolla senza ricaricare la pagina
+async function riprovaAuto(btn){
+  if(btn){ btn.disabled = true; btn.textContent = 'Controllo…'; }
+  await autoLeggi();
+  // la lettura va: si prova anche la scrittura (riscrive la stessa voce)
+  if(AUTO.stato === 'ok') await autoSalva().catch(() => {});
+  disegnaGoogleImp(); disegnaGoogle();
+  if(AUTO.stato === 'ok' && GC.conti.some(c => !attivo(c)) && Object.keys(AUTO.conti).length) gcalAuto();
+}
+async function chiediToken(corpo){
+  const r = await fetch(URL_TOKEN, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ client_id: GCAL_CLIENT_ID, client_secret: AUTO.segreto, ...corpo }) });
+  const j = await r.json().catch(() => ({}));
+  if(!r.ok){ const e = new Error(j.error_description || j.error || 'Google ' + r.status); e.codice = j.error; throw e; }
+  return j;
+}
+// all'apertura: un permesso fresco per ogni account che ha quello di lunga durata
+async function gcalAuto(){
+  await autoLeggi();
+  const emails = Object.keys(AUTO.conti);
+  if(!AUTO.segreto || !emails.length) return disegnaGoogle();
+  AUTO.inCorso = true; if(D) disegna();
+  caricaGis().catch(() => {});
+  let cambiato = false;
+  await Promise.all(emails.map(async email => {
+    try { await gcalToken(await chiediToken({ grant_type: 'refresh_token', refresh_token: AUTO.conti[email] }), email, true); }
+    catch(e){
+      // permesso revocato o scaduto: si torna al pulsante "Mostra eventi"
+      if(e.codice === 'invalid_grant'){ delete AUTO.conti[email]; cambiato = true; }
+      GC.err = 'accesso automatico a Google non riuscito (' + breve(email) + '): ' + e.message;
+    }
+  }));
+  AUTO.inCorso = false;
+  if(cambiato) autoSalva().catch(() => {});
+  gcalLeggi();
+}
+async function gcalScambia(r){
+  if(r.error){ GC.err = r.error_description || r.error; return disegnaGoogle(); }
+  try {
+    const t = await chiediToken({ grant_type: 'authorization_code', code: r.code, redirect_uri: 'postmessage' });
+    const email = await gcalToken(t, null, true);
+    if(t.refresh_token){ AUTO.conti[email] = t.refresh_token; await autoSalva(); }
+    else if(!AUTO.conti[email]){
+      // Google dà il permesso lungo solo alla prima autorizzazione: si revoca quella vecchia e il prossimo clic lo chiede di nuovo
+      google.accounts.oauth2.revoke(t.access_token, () => {}); contoDi(email).token = null;
+      GC.err = 'Ancora un passo: tocca di nuovo "Collega" (o "Mostra eventi") e conferma su Google per attivare l\'accesso automatico.';
+    }
+  } catch(e){ GC.err = AUTO.stato === 'regole' ? 'per l\'accesso automatico vanno aggiornate le regole di Firestore' : 'accesso a Google non riuscito: ' + e.message; }
+  gcalLeggi();
+}
+async function salvaSegreto(){
+  const v = AUTO.bozza;
+  if(!/^GOCSPX-[\w-]{10,}$/.test(v.trim())) { GC.err = 'la chiave segreta inizia con GOCSPX-'; return disegnaGoogleImp(); }
+  AUTO.segreto = v.trim(); AUTO.bozza = '';
+  try { await autoSalva(); GC.err = ''; } catch(e){ AUTO.segreto = ''; GC.err = AUTO.stato === 'regole' ? 'prima vanno aggiornate le regole di Firestore (vedi sotto)' : 'salvataggio non riuscito: ' + e.message; }
+  disegnaGoogleImp();
+}
+async function togliSegreto(){
+  if(!confirm('Togliere l\'accesso automatico? Da qui in poi Google andrà ricollegato a mano a ogni apertura.')) return;
+  if(window.google) Object.values(AUTO.conti).forEach(t => google.accounts.oauth2.revoke(t, () => {}));
+  AUTO.segreto = ''; AUTO.conti = {};
+  try { await autoSalva(); } catch(e){}
+  disegnaGoogleImp();
+}
+function gcalCollegaPrimo(){ const c = GC.conti.find(x => !attivo(x)); gcalCollega(c ? c.email : undefined); }
+async function chiamaGoogle(token, url, opz = {}){
+  const r = await fetch(url, { ...opz, headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' } });
+  if(r.status === 401){ const e = new Error('401'); e.code = 401; throw e; }
+  if(!r.ok) throw new Error('Google Calendar ' + r.status);
+  return r.status === 204 ? {} : r.json();
+}
+// permesso arrivato (dal clic o dall'accesso automatico): di quale account è, e i suoi calendari. Restituisce l'indirizzo
+async function gcalToken(r, atteso, nonLeggere){
+  if(r.error){ GC.err = r.error_description || r.error; return disegnaGoogle(); }
+  let email = atteso;
+  try {
+    // quale account è: il calendario principale ha come id l'indirizzo
+    const l = await chiamaGoogle(r.access_token, `${API_G}/users/me/calendarList?minAccessRole=reader`);
+    const prim = (l.items || []).find(c => c.primary); email = prim ? prim.id : (atteso || GC.inAttesa || 'Google');
+    Object.assign(contoDi(email), { token: r.access_token, scade: Date.now() + (r.expires_in || 3600) * 1000 - 60000,
+      calendari: (l.items || []).map(c => ({ id: c.primary ? 'primary' : c.id, nome: c.primary ? 'Principale' : sicuro(c.summaryOverride || c.summary || c.id), primario: !!c.primary, scrivibile: c.accessRole === 'owner' || c.accessRole === 'writer' || !!c.primary })) });
+    const ric = contiRicordati(); if(!ric.includes(email)) salvaPref('dg:gcalConti', [...ric, email]);
+    GC.err = '';
+  } catch(e){ GC.err = 'accesso a Google non riuscito: ' + e.message; if(atteso) throw e; }
+  if(!nonLeggere) gcalLeggi();
+  return email;
+}
+function gcalScollega(email){
+  const c = GC.conti.find(x => x.email === email); if(!c) return;
+  if(c.token && window.google) google.accounts.oauth2.revoke(c.token, () => {});
+  if(AUTO.conti[email]){ if(window.google) google.accounts.oauth2.revoke(AUTO.conti[email], () => {}); delete AUTO.conti[email]; autoSalva().catch(() => {}); }
+  GC.conti = GC.conti.filter(x => x !== c);
+  salvaPref('dg:gcalConti', contiRicordati().filter(x => x !== email));
+  const v = pref('dg:gcalVisti', {}); delete v[email]; salvaPref('dg:gcalVisti', v);
+  if(calLavoro().startsWith(email + '|')) salvaPref('dg:gcalLavoro2', null);
+  gcalLeggi();
+}
+async function gcalFetch(c, url, opz = {}){
+  if(!attivo(c)){ c.token = null; disegnaGoogle(); throw new Error('scaduto'); }
+  try { return await chiamaGoogle(c.token, url, opz); }
+  catch(e){ if(e.code === 401){ c.token = null; GC.err = 'accesso a Google scaduto'; disegnaGoogle(); } throw e; }
+}
+const isoLocale = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+// lavoro: conta per il riquadro "Lavoro"; comeLavoro: si chiama "Lavoro" (calendario scelto apposta)
+async function leggiEventi(c, id, da, a, lavoro, comeLavoro){
+  const out = [], piuConti = GC.conti.length > 1, cal = c.calendari.find(x => x.id === id);
+  const nomeCal = comeLavoro ? 'Lavoro' : id === 'primary' ? (piuConti ? 'Google · ' + breve(c.email) : 'Google Calendar') : (cal ? cal.nome : 'Google');
+  let pagina = '';
+  do {
+    const q = new URLSearchParams({ timeMin: da.toISOString(), timeMax: a.toISOString(), singleEvents: 'true', orderBy: 'startTime', maxResults: '250' });
+    if(pagina) q.set('pageToken', pagina);
+    const r = await gcalFetch(c, apiEventi(id) + '?' + q);
+    (r.items || []).forEach(e => {
+      if(e.status === 'cancelled' || !e.start) return;
+      const priv = (e.extendedProperties && e.extendedProperties.private) || {}, dgid = priv.dgid, dglav = priv.dglav;
+      const tutto = !!e.start.date, inizio = tutto ? new Date(e.start.date + 'T00:00') : new Date(e.start.dateTime);
+      const fine = e.end ? (e.end.date ? new Date(e.end.date + 'T00:00') : new Date(e.end.dateTime)) : new Date(inizio.getTime() + 36e5);
+      const ora = tutto ? '' : inizio.toLocaleTimeString('it-IT', {hour:'2-digit', minute:'2-digit'});
+      out.push({ d: isoLocale(inizio), ts: inizio.getTime(), fineTs: fine.getTime(), ora, titolo: sicuro(e.summary) || '(senza titolo)', app: sicuro(nomeCal) + (ora ? ' · ' + ora : ''),
+        conto: sicuro(c.email), gid: e.id, cal: id, tutto, inizioL: tutto ? e.start.date : isoLocale(inizio) + 'T' + ora, fineL: tutto ? (e.end && e.end.date || e.start.date) : isoLocale(fine) + 'T' + fine.toLocaleTimeString('it-IT', {hour:'2-digit', minute:'2-digit'}),
+        descr: sicuro(e.description), luogo: sicuro(e.location),
+        tag: comeLavoro ? 'LAV' : 'GOO', amt: null, senzaImporto: true, google: true, lavoro, href: e.htmlLink || 'https://calendar.google.com/', dgid, dglav });
+    });
+    pagina = r.nextPageToken || '';
+  } while(pagina);
+  return out;
+}
+async function gcalLeggi(){
+  // dal mese mostrato nel calendario (o da oggi) ai 30 giorni dopo
+  const oggi = new Date(), base = new Date(oggi.getFullYear(), oggi.getMonth() + calOff, 1);
+  const da = new Date(Math.min(base, new Date(oggi.getFullYear(), oggi.getMonth(), oggi.getDate()))), a = new Date(Math.max(new Date(base.getFullYear(), base.getMonth() + 1, 1), new Date(oggi.getTime() + 31 * 864e5)));
+  const lav = calLavoro(), [lavConto, lavId] = lav ? lav.split('|') : [null, null], attivi = gcalAttivi();
+  const eventi = [], collegate = new Set(); let errore = '';
+  for(const c of attivi){
+    const ids = new Set(vistiDi(c.email)); if(lavConto === c.email) ids.add(lavId);
+    for(const id of ids){
+      const scelto = lavConto === c.email && lavId === id, predefinito = !lav && c === attivi[0] && id === 'primary';
+      try {
+        const l = await leggiEventi(c, id, da, a, scelto || predefinito, scelto);
+        l.forEach(e => { if(e.dgid) collegate.add(e.dgid); });
+        // le voci aggiunte da qui si vedono già come rata o scadenza: non le ripeto
+        eventi.push(...l.filter(e => !e.dgid));
+      } catch(e){ if(e.code !== 401 && e.message !== 'scaduto') errore = e.message; }
+    }
+  }
+  const cl = lavConto && (GC.conti.find(c => c.email === lavConto) || {calendari: []}).calendari.find(x => x.id === lavId);
+  // eventi delle agenzie (es. "CFFT", "CFFT Costa Toscana"): di lavoro in qualunque calendario siano
+  eventi.forEach(e => { const ag = agenziaDi(e.titolo); if(ag){ e.lavoro = true; e.agenzia = ag; e.tag = ag.slice(0, 4); e.app = ag + (e.ora ? ' · ' + e.ora : ''); } });
+  Object.assign(GC, { eventi, collegate, nomeLavoro: cl ? cl.nome : 'Google' });
+  if(attivi.length) GC.err = errore;
+  applicaMoli(); leggiPorto();
+  if(D) disegna(); else disegnaGoogle();
+}
+// moli del porto di Civitavecchia: le navi nominate nei titoli degli eventi Google (comune/porto.js)
+let PORTO = null, portoProvato = 0;
+const etichettaMolo = m => m.attesa ? 'molo non ancora pubblicato' : m.banchina ? `molo ${m.banchina}${m.fonte === 'mese' ? ' (previsione del mese)' : ''}` : 'molo non ancora indicato';
+// il molo ben visibile: etichetta a destra delle voci in agenda
+const badgeMolo = a => a.molo ? `<div class="molo-b${a.molo.attesa ? ' attesa' : a.molo.fonte === 'mese' ? ' prev' : ''}${(a.molo.banchina || '').length > 4 ? ' lungo' : ''}" title="${esc(a.molo.nave + ' · ' + etichettaMolo(a.molo) + (a.molo.orari ? ' · ' + a.molo.orari : ''))}"><small>molo</small><b class="mono">${esc(a.molo.attesa ? '…' : a.molo.banchina || '–')}</b></div>` : '';
+// la nave nel giorno dell'evento; dopo l'ultimo giorno pubblicato dal porto, se la nave è nota: molo in attesa
+function moloDi(e){
+  const m = Porto.trova(PORTO, e.titolo, e.d); if(m) return m;
+  const n = PORTO.al && e.d > PORTO.al ? Porto.nave(PORTO, e.titolo) : null;
+  return n ? { d: e.d, nave: n, banchina: '', orari: '', attesa: true } : null;
+}
+function applicaMoli(tutti){
+  if(!PORTO) return;
+  GC.eventi.forEach(e => { if(tutti || e.molo === undefined) e.molo = moloDi(e); });
+}
+// la tabella del porto cambia una volta a settimana: con la Dashboard aperta a lungo si rilegge ogni 3 ore
+function leggiPorto(){
+  if(!window.Porto || (!GC.eventi.length && !(LAV && LAV.giornate && LAV.giornate.length))) return;
+  if(PORTO && Date.now() - PORTO.letto < 3 * 36e5) return;
+  if(Date.now() - portoProvato < 10 * 60e3) return;
+  portoProvato = Date.now();
+  Porto.leggi().then(d => { PORTO = {...d, letto: Date.now()}; applicaMoli(true); if(D) disegna(); else disegnaGoogle(); }).catch(e => console.warn('porto', e));
+}
+const dgid = a => ('dg' + [...(a.app + '|' + a.titolo + '|' + a.d)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7).toString(36) + a.d.replace(/-/g, '')).slice(0, 60);
+// le scadenze vanno nel calendario principale del primo account collegato
+const contoScadenze = () => gcalAttivi()[0];
+function pulsanteGoogle(a){
+  if(!contoScadenze()) return '';
+  const id = dgid(a);
+  return GC.collegate.has(id) ? `<span class="agg fatto" title="Già in Google Calendar" aria-label="Già in Google Calendar">✓</span>`
+    : `<button class="agg" type="button" title="Aggiungi a Google Calendar" aria-label="Aggiungi ${esc(a.titolo)} a Google Calendar" onclick="event.preventDefault();event.stopPropagation();gcalAggiungi('${id}',this)">+</button>`;
+}
+async function gcalAggiungi(id, btn){
+  const a = tuttaAgenda().find(x => !x.google && dgid(x) === id), c = contoScadenze(); if(!a || !c) return;
+  btn.disabled = true;
+  try {
+    // controllo su Google: se c'è già (aggiunta da un altro dispositivo) non la ricreo
+    const q = new URLSearchParams({ privateExtendedProperty: 'dgid=' + id, singleEvents: 'true' });
+    const gia = await gcalFetch(c, apiEventi('primary') + '?' + q);
+    if(!(gia.items || []).some(e => e.status !== 'cancelled')){
+      const fine = new Date(a.d + 'T12:00'); fine.setDate(fine.getDate() + 1);
+      await gcalFetch(c, apiEventi('primary'), { method: 'POST', body: JSON.stringify({ summary: a.titolo, description: `Da Dashboard · ${a.app}`,
+        start: { date: a.d }, end: { date: isoLocale(fine) }, transparency: 'transparent',
+        reminders: { useDefault: false, overrides: [{ method: 'popup', minutes: 9 * 60 }] }, extendedProperties: { private: { dgid: id } } }) });
+    }
+    GC.collegate.add(id); if(D) disegna();
+  } catch(e){ btn.disabled = false; GC.err = 'non aggiunta: ' + e.message; disegnaGoogle(); }
+}
+// accesso automatico non ancora pronto: il passo che manca (lo si mostra dove Google chiede il tocco)
+function passoAuto(){
+  if(!GC.conti.length || AUTO.stato === 'carico' || AUTO.stato === 'errore') return null;
+  if(AUTO.stato === 'regole') return { t: 'Per non dover più toccare: passo 1 di 3, aggiorna le regole di Firestore', az: 'apriImpostazioni()' };
+  if(!AUTO.segreto) return { t: 'Per non dover più toccare: passo 2 di 3, incolla la chiave segreta di Google', az: 'apriImpostazioni()' };
+  const c = GC.conti.find(x => !AUTO.conti[x.email]);
+  if(c) return { t: `Per non dover più toccare: passo 3 di 3, attiva l'automatico per ${breve(c.email)}`, az: `gcalCollega(${esc(JSON.stringify(c.email))})` };
+  return null;
+}
+function disegnaGoogle(){
+  if($('p-imp').classList.contains('on')) disegnaGoogleImp();
+  disegnaCalGrande();
+  const box = $('goo'); if(!box) return;
+  if(!GCAL_CLIENT_ID){ box.innerHTML = '<span>Google Calendar: da configurare</span>'; return; }
+  if(AUTO.inCorso && !gcalAttivi().length){ box.innerHTML = '<span>Collego Google…</span>'; return; }
+  const attivi = gcalAttivi(), spenti = GC.conti.filter(c => !attivo(c));
+  const testo = attivi.length ? `Google: ${GC.eventi.length} ${GC.eventi.length === 1 ? 'evento' : 'eventi'}${attivi.length > 1 ? ` · ${attivi.length} account` : ''}` : 'Google Calendar';
+  const passo = passoAuto();
+  box.style.flexWrap = 'wrap';
+  box.innerHTML = `${passo ? `<button type="button" class="passo-auto" onclick="${passo.az}">${esc(passo.t)} →</button>` : ''}<span>${esc(GC.err || testo)}</span><span style="display:flex;gap:6px">${spenti.length ? `<button type="button" onclick="gcalCollegaPrimo()">Mostra eventi${GC.conti.length > 1 ? ` (${breve(spenti[0].email)})` : ''}</button>` : attivi.length ? '<button type="button" onclick="gcalLeggi()">Aggiorna</button>' : '<button type="button" onclick="gcalCollega()">Collega</button>'}</span>`;
+}
+// impostazioni: gli account, i calendari da vedere per ciascuno, il calendario di lavoro
+function disegnaGoogleImp(){
+  const box = $('gcal-imp'); if(!box) return;
+  const fuoco = document.activeElement && document.activeElement.id === 'g-seg';
+  if(!GCAL_CLIENT_ID){ box.innerHTML = '<p>Da configurare (ID client).</p>'; return; }
+  const sel = 'height:42px;border-radius:12px;border:1px solid var(--line);background:rgba(0,0,0,.28);color:#fff;padding:0 10px;font:600 13px Manrope,sans-serif;width:100%';
+  const conti = GC.conti.map(c => `<div style="border:1px solid var(--line);border-radius:14px;padding:10px 12px;margin-bottom:8px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap"><b style="font-size:13px;word-break:break-all">${esc(c.email)}</b>
+        <span class="imp-az">${AUTO.conti[c.email] ? '<small style="color:var(--ok);font-weight:700">automatico</small>' : AUTO.segreto ? `<button type="button" onclick="gcalCollega(${esc(JSON.stringify(c.email))})">Attiva automatico</button>` : ''}${attivo(c) || (AUTO.segreto && !AUTO.conti[c.email]) ? '' : `<button type="button" onclick="gcalCollega(${esc(JSON.stringify(c.email))})">Mostra eventi</button>`}<button type="button" class="rosso" onclick="gcalScollega(${esc(JSON.stringify(c.email))})">Scollega</button></span></div>
+      ${attivo(c) ? `<div style="display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:8px;font-size:12.5px">${c.calendari.map(k => `<label style="display:flex;align-items:center;gap:6px"><input type="checkbox" ${vistiDi(c.email).includes(k.id) ? 'checked' : ''} onchange="mostraCalendario(${esc(JSON.stringify(c.email))},${esc(JSON.stringify(k.id))},this.checked)" style="accent-color:var(--acc)">${esc(k.nome)}</label>`).join('')}</div>` : '<p style="margin:6px 0 0;font-size:12px">non collegato in questa sessione</p>'}</div>`).join('');
+  const opzioni = gcalAttivi().flatMap(c => c.calendari.map(k => [`${c.email}|${k.id}`, `${k.nome}${GC.conti.length > 1 ? ' — ' + c.email : ''}`]));
+  box.innerHTML = `${conti || '<p>Nessun account collegato.</p>'}
+    <div class="imp-az" style="margin:4px 0 10px"><button type="button" onclick="gcalCollega()">+ ${GC.conti.length ? 'Aggiungi un account Google' : 'Collega Google Calendar'}</button></div>
+    ${opzioni.length ? `<label style="display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:700;color:var(--ink2)">Calendario di lavoro (riquadro "Lavoro", giornate della sezione Lavoro, nuovi eventi)
+      <select id="lav-sel" onchange="scegliLavoro(this.value)" style="${sel}"><option value="">Principale del primo account</option>${opzioni.map(([v, n]) => `<option value="${esc(v)}"${v === calLavoro() ? ' selected' : ''}>${esc(n)}</option>`).join('')}</select></label>
+    <p style="font-size:11.5px;margin:4px 0 0;color:var(--ink3)">Le giornate della sezione Lavoro si collegano solo agli eventi dell'account ${esc(contoLavoro() || '—')}: salvandole, spostandole o eliminandole si aggiorna il suo calendario.</p>` : ''}
+    <label style="display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:700;color:var(--ink2);margin-top:10px">Agenzie (eventi di lavoro con questa parola nel titolo)
+      <input id="ag-in" value="${esc(agenzie().join(', '))}" placeholder="Es. CFFT" onchange="salvaAgenzie(this.value)" autocapitalize="characters" style="${sel}"></label>
+    <p style="font-size:11.5px;margin:4px 0 0;color:var(--ink3)">Contano nel riquadro Lavoro; aggiungendo la nave al titolo (es. "CFFT Costa Toscana") compare il molo.</p>
+    ${GC.err ? `<p style="color:#ffb3a1;margin:8px 0 0">${esc(GC.err)}</p>` : ''}
+    ${disegnaAuto()}`;
+  if(fuoco && $('g-seg')) $('g-seg').focus();
+}
+function disegnaAuto(){
+  const tit = '<b style="display:block;font-size:13px;margin:16px 0 6px">Accesso automatico all\'apertura</b>';
+  if(AUTO.stato === 'carico') return tit + '<p style="font-size:12px">Leggo la cassaforte…</p>';
+  if(AUTO.stato === 'regole') return tit + `<p style="font-size:12px;line-height:1.5">Firestore rifiuta la <b>${AUTO.rifiuto === 'scrittura' ? 'scrittura' : 'lettura'}</b> della voce "dashboard". In console Firebase → Firestore Database → Regole, la riga <code>app in ['giornale', 'palestra']</code> va cambiata in <code>app in ['giornale', 'palestra', 'dashboard']</code> in <b>tutti e due</b> i punti (${AUTO.rifiuto === 'scrittura' ? 'qui manca quella di "allow create, update"' : 'qui manca quella di "allow read, delete"'}), poi Pubblica. Le regole nuove possono metterci un minuto.</p>
+    <span class="imp-az"><button type="button" onclick="riprovaAuto(this)">Riprova</button></span>`;
+  if(AUTO.stato === 'errore') return tit + '<p style="font-size:12px">La cassaforte non risponde: riprova più tardi.</p>';
+  if(!AUTO.segreto) return tit + `<p style="font-size:12px;line-height:1.5">Senza questo, a ogni apertura Google va ricollegato con un tocco. Con la <b>chiave segreta del client</b> la Dashboard si ricollega da sola: chiave e permessi restano cifrati nella cassaforte.<br>
+    Dove si trova: Google Cloud → Google Auth Platform → Client → il tuo client Web → "Aggiungi chiave segreta" → copia il valore (inizia con GOCSPX-).</p>
+    <div style="display:flex;gap:8px;margin-top:8px"><input id="g-seg" type="password" autocomplete="off" placeholder="GOCSPX-…" value="${esc(AUTO.bozza)}" oninput="AUTO.bozza=this.value" style="flex:1 1 auto;min-width:0;height:42px;border-radius:12px;border:1px solid var(--line);background:rgba(0,0,0,.28);color:#fff;padding:0 10px"><span class="imp-az"><button type="button" onclick="salvaSegreto()">Salva</button></span></div>`;
+  const auto = GC.conti.filter(c => AUTO.conti[c.email]).map(c => breve(c.email)), manca = GC.conti.filter(c => !AUTO.conti[c.email]).map(c => breve(c.email));
+  return tit + `<p style="font-size:12px;line-height:1.5">Attivo${auto.length ? ' per ' + esc(auto.join(', ')) : ''}.${manca.length ? ` Per ${esc(manca.join(', '))}: tocca "Attiva automatico" e conferma su Google.` : ''}${GC.conti.length ? '' : ' Collega un account Google per attivarlo.'}</p>
+    <span class="imp-az"><button type="button" class="rosso" onclick="togliSegreto()">Togli l'accesso automatico</button></span>`;
+}
+function mostraCalendario(email, id, si){
+  const v = pref('dg:gcalVisti', {}), l = new Set(v[email] || ['primary']);
+  si ? l.add(id) : l.delete(id); v[email] = [...l]; salvaPref('dg:gcalVisti', v); gcalLeggi();
+}
+// cifre nascoste: preferenza di questo dispositivo
+function nascondiCifre(si){
+  si = si === undefined ? !document.body.classList.contains('cifre-nascoste') : si;
+  document.body.classList.toggle('cifre-nascoste', si);
+  const b = $('occhio'); b.setAttribute('aria-pressed', si); b.setAttribute('aria-label', si ? 'Mostra le cifre' : 'Nascondi le cifre');
+  salvaPref('dg:cifreNascoste', si || null);
+}
+nascondiCifre(!!pref('dg:cifreNascoste', false));
+function scegliLavoro(v){ salvaPref('dg:gcalLavoro2', v || null); gcalLeggi(); }
+// agenzie di lavoro: una parola nel titolo dell'evento basta (preferenza di questo dispositivo, come i calendari scelti)
+const agenzie = () => pref('dg:agenzie', ['CFFT']);
+function agenziaDi(titolo){
+  const t = ' ' + String(titolo || '').toUpperCase().replace(/[^A-Z0-9À-Ü]+/g, ' ') + ' ';
+  return agenzie().find(a => a && t.includes(' ' + a.toUpperCase() + ' ')) || null;
+}
+function salvaAgenzie(v){
+  salvaPref('dg:agenzie', [...new Set(String(v).split(/[,;]+/).map(x => x.trim().toUpperCase()).filter(Boolean))]);
+  if(gcalAttivi().length) gcalLeggi(); else disegnaGoogleImp();
+}
+
+/* ---- Calendario grande: tutte le app nello stesso mese ---- */
+let giornoSel = null;
+function apriCalendario(){ $('p-cal').classList.add('on'); disegnaCalGrande(); document.body.style.overflow = 'hidden'; if(gcalAttivi().length) gcalLeggi(); }
+function apriImpostazioni(){ $('p-imp').classList.add('on'); disegnaImpostazioni(); document.body.style.overflow = 'hidden'; if(AUTO.stato === 'regole' || AUTO.stato === 'errore') riprovaAuto(); }
+function chiudiPannello(){ document.querySelectorAll('.pannello').forEach(p => p.classList.remove('on')); document.body.style.overflow = ''; }
+document.addEventListener('keydown', e => { if(e.key !== 'Escape') return; if($('p-ev').classList.contains('on')) chiudiEvento(); else chiudiPannello(); });
+function eventiDelGiorno(iso){
+  const out = [];
+  if(D) D.eventiDett.filter(e => e.d === iso).forEach(e => out.push({...e, cl: 'bil', href: 'bilancio/'}));
+  altriEventi().filter(e => e.d === iso).forEach(e => out.push({...e, cl:'pal'}));
+  const al = allenamento(iso); if(al) out.push({...al, cl:'pal'});
+  GC.eventi.filter(e => e.d === iso).forEach(e => out.push({...e, cl:'goo'}));
+  return out;
+}
+function disegnaCalGrande(){
+  if(!$('p-cal').classList.contains('on')) return;
+  const oggi = new Date(), base = new Date(oggi.getFullYear(), oggi.getMonth() + calOff, 1), y = base.getFullYear(), m = base.getMonth();
+  $('calv-tit').textContent = base.toLocaleDateString('it-IT', {month:'long', year:'numeric'}).replace(/^./, c => c.toUpperCase());
+  const primo = (base.getDay() + 6) % 7, start = new Date(y, m, 1 - primo), oggiIso = isoLocale(oggi);
+  let h = ['Lun','Mar','Mer','Gio','Ven','Sab','Dom'].map(w => `<div class="wd" aria-hidden="true">${w}</div>`).join('');
+  const celle = Math.ceil((primo + new Date(y, m + 1, 0).getDate()) / 7) * 7;
+  for(let i = 0; i < celle; i++){
+    const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i), iso = isoLocale(d), ev = eventiDelGiorno(iso);
+    h += `<button type="button" class="g${d.getMonth() !== m ? ' fuori' : ''}${iso === oggiIso ? ' oggi' : ''}${iso === giornoSel ? ' sel' : ''}" onclick="scegliGiorno('${iso}')" aria-label="${d.toLocaleDateString('it-IT', {day:'numeric', month:'long'})}: ${ev.length} eventi">
+      <span class="n">${d.getDate()}</span>${ev.slice(0, 3).map(e => `<span class="ev-c ${e.cl}">${esc(e.titolo)}</span>`).join('')}${ev.length > 3 ? `<span class="ev-piu">+${ev.length - 3}</span>` : ''}</button>`;
+  }
+  $('calv').innerHTML = h;
+  const sel = giornoSel || oggiIso, ev = eventiDelGiorno(sel);
+  evGiorno = ev;
+  $('calv-giorno').innerHTML = `<div class="sez"><h2>${esc(new Date(sel + 'T12:00').toLocaleDateString('it-IT', {weekday:'long', day:'numeric', month:'long'}).replace(/^./, c => c.toUpperCase()))}</h2><button class="pill" type="button" style="border:0;cursor:pointer;padding:10px 14px" onclick="apriEvento({d:'${sel}'})">+ Evento</button></div>
+    <div class="agenda">${ev.length ? ev.map((a, i) => `<a class="item" href="${a.href || 'bilancio/'}"${a.google ? ` onclick="event.preventDefault();apriEvento(evGiorno[${i}])"` : ''}><div class="tag${a.google ? ' goo' : ''}">${esc(a.tag || (a.cl === 'gio' ? 'MEZZO' : a.app.includes('rate') ? 'RATA' : 'ABB'))}</div>
+      <div class="t"><span>${esc(a.app)}</span><div>${esc(a.titolo)}</div>${a.paid ? '<small>pagato</small>' : ''}</div>${a.molo ? badgeMolo(a) : `<div class="amt mono">${a.amt != null ? eur2(a.amt) : ''}</div>`}</a>`).join('') : '<div class="vuoto">Niente in questo giorno.</div>'}</div>`;
+}
+function scegliGiorno(iso){ giornoSel = iso; disegnaCalGrande(); }
+// un evento di Google (In programma, riquadro Lavoro): si apre nel calendario della Dashboard, sul suo giorno e con la sua scheda
+let agendaCorr = [], lavoroEv = null;
+function apriNelCalendario(a){
+  if(!a) return;
+  const oggi = new Date(), d = new Date(a.d + 'T12:00');
+  calOff = (d.getFullYear() - oggi.getFullYear()) * 12 + d.getMonth() - oggi.getMonth();
+  giornoSel = a.d; apriCalendario(); if(D) disegnaCal();
+  if(a.google) apriEvento(a);
+}
+let evGiorno = [], evAperto = null;
+
+/* ---- Eventi di Google Calendar: aggiungere, modificare, eliminare ---- */
+const piuGiorno = (iso, n) => { const d = new Date(iso + 'T12:00'); d.setDate(d.getDate() + n); return isoLocale(d); };
+function apriEvento(ev){
+  evAperto = ev;
+  $('p-ev').classList.add('on');
+  const nuovo = !ev.gid, box = $('ev-corpo');
+  $('ev-tit').textContent = nuovo ? 'Nuovo evento' : 'Evento';
+  if(!GCAL_CLIENT_ID){ box.innerHTML = `<p class="nota-ev">Gli eventi si salvano nel tuo Google Calendar: prima va configurato (ID client) e collegato. Trovi i passaggi in Impostazioni → Google Calendar.</p>`; return; }
+  if(!gcalAttivi().length || (ev.conto && !attivo(contoDi(ev.conto)))){ box.innerHTML = `<p class="nota-ev">Per ${nuovo ? 'aggiungere' : 'modificare'} eventi collega Google Calendar${ev.conto ? ' (' + esc(ev.conto) + ')' : ''}.</p><div class="imp-az"><button type="button" onclick="chiudiEvento();${ev.conto ? `gcalCollega(${esc(JSON.stringify(ev.conto))})` : 'gcalCollegaPrimo()'}">${GC.conti.length ? 'Mostra eventi' : 'Collega Google Calendar'}</button></div>`; return; }
+  const [di, oi] = (ev.inizioL || (ev.d + 'T09:00')).split('T'), [df, of] = (ev.fineL || (ev.d + 'T10:00')).split('T');
+  const fineGiorno = ev.tutto ? piuGiorno(df, -1) : df;
+  const cal = gcalAttivi().flatMap(c => c.calendari.filter(k => k.scrivibile).map(k => ({ v: c.email + '|' + k.id, nome: k.nome + (GC.conti.length > 1 ? ' — ' + c.email : '') })));
+  // nuovo evento: proposto il calendario di lavoro (le date di lavoro vanno sull'account del lavoro), se no il principale
+  const scelto = ev.conto ? ev.conto + '|' + ev.cal : cal.some(c => c.v === calLavoro()) ? calLavoro() : gcalAttivi()[0].email + '|primary';
+  box.innerHTML = `${ev.molo ? `<div class="molo-ev">${badgeMolo(ev)}<div><b>${esc(ev.molo.nave)}</b><span>Porto di Civitavecchia${ev.molo.orari ? ' · ' + esc(ev.molo.orari) : ''}${ev.molo.fonte === 'mese' ? ' · previsione del mese: si conferma con la tabella settimanale' : ''}</span></div></div>` : ''}<form class="ev-form" onsubmit="event.preventDefault();salvaEvento()">
+    <label class="tutta">Titolo<input id="ev-t" value="${esc(ev.titolo || '')}" required placeholder="Es. Riunione"></label>
+    <label class="riga-chk tutta"><input type="checkbox" id="ev-tutto" ${ev.tutto ? 'checked' : ''} onchange="document.querySelectorAll('.ev-ora').forEach(x=>x.style.display=this.checked?'none':'')"> Tutto il giorno</label>
+    <label>Dal<input type="date" id="ev-di" value="${esc(di)}" required></label><label class="ev-ora" ${ev.tutto ? 'style="display:none"' : ''}>Ore<input type="time" id="ev-oi" value="${esc(oi || '09:00')}"></label>
+    <label>Al<input type="date" id="ev-df" value="${esc(fineGiorno)}" required></label><label class="ev-ora" ${ev.tutto ? 'style="display:none"' : ''}>Ore<input type="time" id="ev-of" value="${esc(of || '10:00')}"></label>
+    <label class="tutta">Calendario<select id="ev-cal" ${nuovo ? '' : 'disabled'}>${cal.map(c => `<option value="${esc(c.v)}"${c.v === scelto ? ' selected' : ''}>${esc(c.nome)}</option>`).join('')}</select></label>
+    <label class="tutta">Luogo<input id="ev-l" value="${esc(ev.luogo || '')}"></label>
+    <label class="tutta">Note<textarea id="ev-n" rows="3">${esc(ev.descr || '')}</textarea></label>
+    <p class="nota-ev tutta" id="ev-err" role="alert"></p>
+    <div class="imp-az tutta">${nuovo ? '' : `<button type="button" class="rosso" onclick="eliminaEvento()">Elimina</button><a href="${esc(ev.href)}" target="_blank" rel="noopener">Apri in Google</a>`}<button type="submit" style="margin-left:auto;background:var(--acc);border-color:var(--acc)">Salva</button></div></form>`;
+  setTimeout(() => $('ev-t') && $('ev-t').focus(), 50);
+}
+function chiudiEvento(){ $('p-ev').classList.remove('on'); evAperto = null; }
+async function salvaEvento(){
+  const ev = evAperto, tutto = $('ev-tutto').checked, di = $('ev-di').value, df = $('ev-df').value || di, oi = $('ev-oi').value, of = $('ev-of').value;
+  const err = m => { $('ev-err').textContent = m; };
+  if(!$('ev-t').value.trim()) return err('Scrivi il titolo');
+  if(df < di || (!tutto && df === di && of <= oi)) return err('La fine è prima dell\'inizio');
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Rome';
+  const corpo = { summary: $('ev-t').value.trim(), location: $('ev-l').value.trim(), description: $('ev-n').value.trim(),
+    start: tutto ? { date: di } : { dateTime: `${di}T${oi}:00`, timeZone: tz },
+    end: tutto ? { date: piuGiorno(df, 1) } : { dateTime: `${df}T${of}:00`, timeZone: tz } };
+  // modificando, il campo dell'altro tipo (data / data e ora) va svuotato esplicitamente
+  if(ev.gid){ if(tutto){ corpo.start.dateTime = null; corpo.end.dateTime = null; } else { corpo.start.date = null; corpo.end.date = null; } }
+  try {
+    if(ev.gid) await gcalFetch(contoDi(ev.conto), apiEventi(ev.cal) + '/' + encodeURIComponent(ev.gid), { method: 'PATCH', body: JSON.stringify(corpo) });
+    else { const [email, ...id] = $('ev-cal').value.split('|'); await gcalFetch(contoDi(email), apiEventi(id.join('|')), { method: 'POST', body: JSON.stringify(corpo) }); }
+    chiudiEvento(); giornoSel = di; await gcalLeggi();
+  } catch(e){ err('Non salvato: ' + e.message); }
+}
+/* ---- Giornate di Lavoro collegate a Google Calendar ----
+   Salvando una giornata in Lavoro (data, nave o agenzia cambiate) o eliminandola, Lavoro lo dice alla Dashboard, che ha Google:
+   l'evento di quella giornata si sposta, si aggiorna o si elimina; se non c'è, si crea nel calendario di lavoro.
+   L'evento si riconosce dal segno che l'app gli lascia (dglav = id della giornata); la prima volta dalla data e dal titolo. */
+const normT = s => window.Porto ? Porto.norm(s) : String(s || '').toUpperCase();
+const eventiGoogleDelGiorno = async d => (await eventiGoogleTra(d, d)).filter(e => e.d === d);
+// l'account Google del lavoro: quello del "Calendario di lavoro" scelto nelle Impostazioni (se no il primo collegato).
+// Le giornate di Lavoro si collegano solo ai suoi eventi: gli altri account non si leggono né si toccano
+const contoLavoro = () => (calLavoro().split('|')[0]) || (gcalAttivi()[0] || {}).email || '';
+const contoLavoroAttivo = () => { const e = contoLavoro(); return !!e && gcalAttivi().some(c => c.email === e); };
+// gli eventi Google dell'account del lavoro (calendari visti e di lavoro) dal giorno daIso al giorno aIso compresi
+async function eventiGoogleTra(daIso, aIso){
+  const lav = calLavoro(), [lavConto, ...r] = lav ? lav.split('|') : [null], lavId = r.join('|'), out = [];
+  const da = new Date(daIso + 'T00:00'), a = new Date(new Date(aIso + 'T00:00').getTime() + 864e5);
+  for(const c of gcalAttivi().filter(c => c.email === contoLavoro())){
+    const ids = new Set(vistiDi(c.email)); if(lavConto === c.email) ids.add(lavId);
+    for(const id of ids){ try { out.push(...await leggiEventi(c, id, da, a, false, lavConto === c.email && id === lavId)); } catch(e){ console.warn('calendario', e); } }
+  }
+  return out;
+}
+function puntiEvento(e, g){
+  if(e.dglav === g.id) return 100;
+  const t = ' ' + normT(e.titolo) + ' ';
+  if(g.nave && t.includes(' ' + normT(g.nave) + ' ')) return 10;
+  if(g.agenzia && t.includes(' ' + normT(g.agenzia) + ' ')) return 5;
+  return e.tag === 'LAV' ? 1 : 0; // nel calendario di lavoro
+}
+async function eventoDellaGiornata(g){
+  const l = (await eventiGoogleDelGiorno(g.d)).map(e => ({e, p: puntiEvento(e, g)})).filter(x => x.p > 0).sort((a, b) => b.p - a.p);
+  if(!l.length) return null;
+  if(l.length > 1 && l[0].p === l[1].p && l[0].p < 100) return {ambiguo: true};
+  return l[0].e;
+}
+const reTesto = s => new RegExp(String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+async function aggiornaEventoLavoro(e, prima, dopo, soloSegno){
+  const giorni = Math.round((new Date(dopo.d + 'T12:00') - new Date(prima.d + 'T12:00')) / 864e5), tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'Europe/Rome';
+  const sposta = iso => { const [d, t] = iso.split('T'); return piuGiorno(d, giorni) + (t ? 'T' + t : ''); };
+  const corpo = { extendedProperties: { private: { dglav: dopo.id, ...(e.dgid ? {dgid: e.dgid} : {}) } } };
+  if(giorni){ corpo.start = e.tutto ? {date: sposta(e.inizioL)} : {dateTime: sposta(e.inizioL) + ':00', timeZone: tz}; corpo.end = e.tutto ? {date: sposta(e.fineL)} : {dateTime: sposta(e.fineL) + ':00', timeZone: tz}; }
+  // il titolo segue nave e agenzia: si sostituisce la vecchia, se manca si aggiunge
+  let tit = e.titolo;
+  [['nave', ' · '], ['agenzia', ' · ']].forEach(([k, sep]) => {
+    if(prima[k] && dopo[k] !== prima[k] && reTesto(prima[k]).test(tit)) tit = tit.replace(reTesto(prima[k]), dopo[k] || '').replace(/\s*·\s*$|^\s*·\s*/g, '').trim();
+    if(dopo[k] && !(' ' + normT(tit) + ' ').includes(' ' + normT(dopo[k]) + ' ')) tit += sep + dopo[k];
+  });
+  if(tit !== e.titolo && !soloSegno) corpo.summary = tit;
+  await gcalFetch(contoDi(e.conto), apiEventi(e.cal) + '/' + encodeURIComponent(e.gid), { method: 'PATCH', body: JSON.stringify(corpo) });
+}
+async function creaEventoLavoro(g){
+  const lav = calLavoro(), [email, ...r] = lav ? lav.split('|') : [gcalAttivi()[0].email, 'primary'];
+  await gcalFetch(contoDi(email), apiEventi(r.join('|') || 'primary'), { method: 'POST', body: JSON.stringify({
+    summary: [g.nave || 'Lavoro', g.agenzia].filter(Boolean).join(' · '), description: 'Da Lavoro · Dashboard' + (g.tipo ? ' · ' + g.tipo : ''),
+    start: {date: g.d}, end: {date: piuGiorno(g.d, 1)}, extendedProperties: { private: { dglav: g.id } } }) });
+}
+/* Allinea calendario (da Lavoro → Giornate): le giornate da un mese fa in poi confrontate con gli eventi di lavoro di Google.
+   Giornata con il suo evento: a posto (si segna il collegamento). Senza: l'evento di lavoro rimasto a un'altra data (stessa nave,
+   se no stessa agenzia, il più vicino entro 10 giorni) si sposta; se non c'è si crea. Gli eventi di lavoro senza giornata si segnalano soltanto. */
+async function pianoAllinea(giornate){
+  const oggi = isoLocale(new Date()), gg = giornate.filter(g => g.d >= piuGiorno(oggi, -30)).sort((a, b) => a.d.localeCompare(b.d));
+  if(!gg.length) return null;
+  const ev = await eventiGoogleTra(piuGiorno(gg[0].d, -10), piuGiorno(gg.at(-1).d, 10));
+  const navi = [...new Set(gg.map(g => normT(g.nave)).filter(Boolean))], ags = [...new Set([...gg.map(g => normT(g.agenzia)), ...agenzie().map(normT)].filter(Boolean))];
+  const diLavoro = e => { const t = ' ' + normT(e.titolo) + ' '; return !!e.dglav || e.tag === 'LAV' || navi.some(n => t.includes(' ' + n + ' ')) || ags.some(x => t.includes(' ' + x + ' ')); };
+  // l'evento nomina un'altra nave delle giornate: non è di questa giornata, anche se l'agenzia è la stessa
+  // e vale lo stesso se si riconosce solo dall'agenzia ma tolta l'agenzia il titolo dice altro (due parole o più: una nave)
+  const resto = (e, g) => (' ' + normT(e.titolo) + ' ').replace(' ' + normT(g.agenzia) + ' ', ' ').trim().split(/\s+/).filter(Boolean).length;
+  const altraNave = (e, g) => !!g.nave && (navi.some(n => n !== normT(g.nave) && (' ' + normT(e.titolo) + ' ').includes(' ' + n + ' ')) || (puntiEvento(e, g) === 5 && resto(e, g) >= 2));
+  const libero = (e, g) => !e.dglav || e.dglav === g.id || !gg.some(x => x.id === e.dglav); // già collegato a un'altra giornata: no
+  const usati = new Set(), passi = [], senza = [];
+  gg.forEach(g => {
+    const e = ev.filter(x => !usati.has(x) && x.d === g.d && puntiEvento(x, g) > 0 && libero(x, g) && !altraNave(x, g)).sort((x, y) => puntiEvento(y, g) - puntiEvento(x, g))[0];
+    if(e){ usati.add(e); if(e.dglav !== g.id) passi.push({tipo: 'segna', e, g}); } else senza.push(g);
+  });
+  senza.forEach(g => {
+    const giorni = e => Math.abs(new Date(e.d + 'T12:00') - new Date(g.d + 'T12:00')) / 864e5;
+    const c = ev.filter(e => !usati.has(e) && diLavoro(e) && giorni(e) <= 10 && puntiEvento(e, g) >= 5 && libero(e, g) && !altraNave(e, g)) // nave, agenzia o collegamento: mai un evento qualsiasi
+      .sort((x, y) => puntiEvento(y, g) - puntiEvento(x, g) || giorni(x) - giorni(y))[0];
+    if(c){ usati.add(c); passi.push({tipo: 'sposta', e: c, g}); } else passi.push({tipo: 'crea', g});
+  });
+  const orfani = ev.filter(e => !usati.has(e) && diLavoro(e) && e.d >= piuGiorno(oggi, -30) && !(e.dglav && gg.some(g => g.id === e.dglav)));
+  return {passi, orfani};
+}
+async function allineaLavoro(giornate){
+  const p = await pianoAllinea(giornate);
+  if(!p) return 'Nessuna giornata da controllare';
+  const visibili = p.passi.filter(x => x.tipo !== 'segna');
+  const righe = visibili.map(x => x.tipo === 'sposta' ? `• Sposto "${x.e.titolo}" dal ${fmtD(x.e.d)} al ${fmtD(x.g.d)}` : `• Aggiungo "${[x.g.nave || 'Lavoro', x.g.agenzia].filter(Boolean).join(' · ')}" il ${fmtD(x.g.d)}`);
+  const extra = p.orfani.length ? `\n\nEventi di lavoro senza giornata (non li tocco): ${p.orfani.slice(0, 6).map(e => fmtD(e.d) + ' "' + e.titolo + '"').join(', ')}${p.orfani.length > 6 ? '…' : ''}` : '';
+  if(visibili.length && !confirm(`Allineo il calendario alle giornate di Lavoro:\n\n${righe.slice(0, 15).join('\n')}${righe.length > 15 ? `\n… e altre ${righe.length - 15}` : ''}${extra}`)) return 'Calendario non toccato';
+  let fatti = 0;
+  for(const x of p.passi){
+    if(!visibili.length && x.tipo !== 'segna') continue;
+    if(x.tipo === 'segna') await aggiornaEventoLavoro(x.e, x.g, x.g, true);
+    else if(x.tipo === 'sposta'){ await aggiornaEventoLavoro(x.e, {id: x.g.id, d: x.e.d, nave: '', agenzia: ''}, x.g); fatti++; }
+    else { await creaEventoLavoro(x.g); fatti++; }
+  }
+  await gcalLeggi();
+  return (fatti ? `Calendario allineato: ${visibili.filter(x => x.tipo === 'sposta').length} spostati, ${visibili.filter(x => x.tipo === 'crea').length} aggiunti` : 'Il calendario era già allineato') + (p.orfani.length ? ` · ${p.orfani.length} eventi di lavoro senza giornata` : '');
+}
+addEventListener('message', async e => {
+  if(e.origin !== location.origin || !e.data || e.data.tipo !== 'lavoro-allinea' || !(frames.lavoro && e.source === frames.lavoro.contentWindow)) return; // solo dalla cornice di Lavoro
+  const rispondi = testo => { try { e.source.postMessage({tipo: 'lavoro-cal-esito', testo}, location.origin); } catch(x){} };
+  if(!contoLavoroAttivo()) return rispondi(`Collega Google${contoLavoro() ? ' (' + contoLavoro() + ')' : ''} nella Dashboard per allineare il calendario`);
+  try { rispondi(await allineaLavoro(e.data.giornate || [])); } catch(err){ rispondi('Calendario non allineato: ' + err.message); }
+});
+// modifiche di Lavoro arrivate con l'account del lavoro non ancora collegato (per esempio appena aperta l'app): partono appena si collega
+const codaLavoro = [];
+setInterval(async () => {
+  if(!codaLavoro.length || !contoLavoroAttivo() || codaLavoro.inCorso) return;
+  codaLavoro.inCorso = true;
+  try { while(codaLavoro.length){ const x = codaLavoro.shift(); const t = await calendarioLavoro(x.dati).catch(err => 'Calendario non aggiornato: ' + err.message); x.rispondi(t); } }
+  finally { codaLavoro.inCorso = false; }
+}, 3000);
+addEventListener('message', async e => {
+  if(e.origin !== location.origin || !e.data || e.data.tipo !== 'lavoro-cal' || !(frames.lavoro && e.source === frames.lavoro.contentWindow)) return; // solo dalla cornice di Lavoro
+  const rispondi = testo => { if(testo) try { e.source.postMessage({tipo: 'lavoro-cal-esito', testo}, location.origin); } catch(x){} };
+  if(!contoLavoroAttivo()){ codaLavoro.push({dati: e.data, rispondi}); return rispondi('Il calendario si aggiorna appena Google' + (contoLavoro() ? ' (' + contoLavoro() + ')' : '') + ' è collegato'); }
+  try { rispondi(await calendarioLavoro(e.data)); } catch(err){ rispondi('Calendario non aggiornato: ' + err.message); }
+});
+// una giornata di Lavoro salvata o eliminata: il suo evento nel calendario dell'account del lavoro; restituisce l'esito da mostrare
+async function calendarioLavoro({azione, prima, dopo}){
+  if(azione === 'elimina'){
+    const ev = await eventoDellaGiornata(prima);
+    if(!ev) return '';
+    if(ev.ambiguo) return 'Più eventi di lavoro quel giorno: il calendario non è stato toccato';
+    if(!confirm(`Eliminare anche "${ev.titolo}" del ${fmtD(prima.d)} da Google Calendar?`)) return '';
+    await gcalFetch(contoDi(ev.conto), apiEventi(ev.cal) + '/' + encodeURIComponent(ev.gid), { method: 'DELETE' });
+    await gcalLeggi();
+    return 'Evento eliminato anche dal calendario';
+  }
+  const ev = await eventoDellaGiornata(prima || dopo);
+  if(ev && ev.ambiguo) return 'Più eventi di lavoro quel giorno: sposta a mano quello giusto nel calendario';
+  let esito;
+  if(ev){ await aggiornaEventoLavoro(ev, prima || dopo, dopo); esito = prima && prima.d !== dopo.d ? 'Calendario aggiornato: evento spostato al ' + fmtD(dopo.d) : 'Calendario aggiornato'; }
+  else { await creaEventoLavoro(dopo); esito = 'Evento aggiunto al calendario'; }
+  await gcalLeggi();
+  return esito;
+}
+async function eliminaEvento(){
+  const ev = evAperto; if(!ev || !ev.gid || !confirm('Eliminare "' + ev.titolo + '" da Google Calendar?')) return;
+  try { await gcalFetch(contoDi(ev.conto), apiEventi(ev.cal) + '/' + encodeURIComponent(ev.gid), { method: 'DELETE' }); chiudiEvento(); await gcalLeggi(); }
+  catch(e){ $('ev-err').textContent = 'Non eliminato: ' + e.message; }
+}
+
+function disegnaImpostazioni(){
+  const u = Cassaforte.user;
+  $('imp-corpo').innerHTML = `
+    <section class="imp-sez"><h3>Account</h3><p>${u ? 'Accesso come <b>' + esc(u.email || '') + '</b>. Lo stesso account e la stessa passphrase aprono Bilancio, Palestra e Lavoro.' : 'Non hai fatto l\'accesso.'}</p>
+      <div class="imp-az"><button type="button" onclick="bloccaTutto()">Blocca</button><button type="button" class="rosso" onclick="esciTutto()">Esci dall'account</button></div></section>
+    <section class="imp-sez"><h3>Passphrase</h3><p>Cifra tutti i dati prima che arrivino su Firebase. Cambiandola si ricifrano Bilancio, Palestra e Lavoro in un colpo solo.</p>
+      <div class="imp-az"><a href="bilancio/#passphrase">Cambia passphrase</a></div></section>
+    <section class="imp-sez"><h3>Google Calendar</h3><p>Uno o più account Google: i loro eventi nel calendario, "+" per aggiungere scadenze e rate (solo titolo e data) al primo account. Il permesso resta in memoria per un'ora.</p>
+      <div id="gcal-imp"></div></section>
+    <section class="imp-sez"><h3>Impostazioni delle app</h3><p>Conti, carte, categorie e importazioni stanno in Bilancio; muscoli, giorni e blocchi nel Programma della Palestra.</p>
+      <div class="imp-az"><a href="bilancio/#impostazioni">Bilancio</a><a href="palestra/?t=schede">Palestra</a></div></section>
+    <section class="imp-sez"><h3>Backup automatici</h3><p>Ogni giorno una copia cifrata di tutto (Bilancio, Palestra, Lavoro): nel cloud gli ultimi 10 giorni e una al mese per un anno, e su questo dispositivo le ultime 5. Prima di un ripristino viene salvato anche lo stato attuale.</p>
+      <div id="bk-imp"><p class="nota">Leggo i backup…</p></div>
+      <div class="imp-az"><button type="button" onclick="backupOra()">Fai un backup adesso</button></div></section>
+    <section class="imp-sez"><h3>Attività e sicurezza</h3><p>Registro cifrato di accessi, sblocchi, passphrase o password sbagliate, nuovi dispositivi, cambi di passphrase, ripristini e contenuti bloccati. In rosso quello da controllare.</p>
+      <div id="reg-imp"><p class="nota">Leggo il registro…</p></div>
+      <div class="imp-az"><button type="button" onclick="svuotaRegistro()">Svuota registro</button></div></section>
+    <section class="imp-sez"><h3>Sicurezza</h3><p>Dati cifrati end-to-end (AES-GCM 256, chiave dalla passphrase con PBKDF2 600.000 iterazioni). Su Firebase solo testo cifrato; la passphrase non esce mai dal dispositivo.</p></section>`;
+  disegnaGoogle(); disegnaBackup(); disegnaRegistro();
+}
+const NOMI_EVENTO = {'accesso':'Accesso', 'accesso-fallito':'Accesso non riuscito', 'sblocco':'Cassaforte sbloccata', 'passphrase-errata':'Passphrase errata', 'nuovo-dispositivo':'Nuovo dispositivo', 'apertura':'Apertura', 'cambio-passphrase':'Passphrase cambiata', 'ripristino':'Backup ripristinato', 'csp':'Contenuto bloccato (CSP)', 'sezione-danneggiata':'Dati danneggiati trovati', 'svuotamento':'Eliminazione grande confermata', 'registro-svuotato':'Registro svuotato'};
+async function disegnaRegistro(){
+  const el = $('reg-imp'); if(!el) return;
+  try {
+    const me = Cassaforte.dispositivo(), tutti = (await Cassaforte.registro()).slice().reverse();
+    // righe uguali una dopo l'altra (stesso evento, stesso dispositivo, stesso indirizzo) diventano una sola con ×N
+    const chiave = e => e.tipo + '|' + e.disp + '|' + (e.tipo === 'csp' ? cspHost(e.det) : e.det || '');
+    const l = []; tutti.forEach(e => { const u = l[l.length - 1]; if(u && chiave(u.e) === chiave(e)){ u.n++; u.dal = e.il; } else l.push({e, n:1, dal:e.il}); });
+    const quando = x => new Date(x).toLocaleString('it-IT', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'});
+    el.innerHTML = l.length ? `<div class="bk-lista">${l.slice(0, 40).map(({e, n, dal}) => { const ok = cspRisolto(e); return `<div class="bk-riga${Cassaforte.SOSPETTI.includes(e.tipo) && !ok ? ' sospetto' : ''}"><span>${esc(NOMI_EVENTO[e.tipo] || e.tipo)}${n > 1 ? ` ×${n}` : ''}${ok ? ' · risolto' : ''}<small>${esc(n > 1 ? quando(dal) + ' → ' + quando(e.il) : quando(e.il))} · ${esc(e.dove || '')}${e.disp === me ? ' (questo)' : ''}${e.det ? ' · ' + esc(e.tipo === 'csp' ? (e.det.split(' ')[0] + ' ' + cspHost(e.det)) : e.det) : ''}</small></span></div>`; }).join('')}</div>` : '<p class="nota">Ancora nessuna attività registrata.</p>';
+    Cassaforte.segnaVisto();
+  } catch(e){ el.innerHTML = `<p class="nota">Non riesco a leggere il registro (${esc(e.code || e.message)}).</p>`; }
+}
+async function svuotaRegistro(){
+  if(!confirm('Svuotare il registro delle attività? Resta solo una riga che dice che l\'hai svuotato.')) return;
+  try { await Cassaforte.svuotaRegistro(); toast('Registro svuotato'); } catch(e){ toast('Non riuscito: ' + (e.code || e.message)); }
+  disegnaRegistro();
+}
+// CSP: l'indirizzo bloccato (solo il sito) e se ora è permesso (blocchi di prima di una correzione: non da controllare)
+const cspHost = det => { const u = String(det || '').split(' ')[1] || ''; try { return new URL(u).host; } catch(e){ return u.slice(0, 60); } };
+const CSP_PERMESSI = ['apis.google.com'];
+const cspRisolto = e => e.tipo === 'csp' && CSP_PERMESSI.includes(cspHost(e.det));
+// all'apertura: se su altri dispositivi è successo qualcosa da controllare, lo dico
+async function controllaAttivita(){
+  try { const l = (await Cassaforte.daControllare()).filter(e => !cspRisolto(e)); if(l.length) toast(`Da controllare: ${l.length} ${l.length === 1 ? 'attività' : 'attività'} (${[...new Set(l.map(e => NOMI_EVENTO[e.tipo] || e.tipo))].join(', ')}) · Impostazioni → Attività`); } catch(e){}
+}
+// messaggio breve in basso (stesso riquadro dello stato di Bilancio)
+function toast(m){ const s = $('stato'); s.textContent = m; s.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => s.classList.remove('on'), 2600); }
+const dataBackup = id => { const g = id.slice(3); return `${+g.slice(6,8)} ${['gen','feb','mar','apr','mag','giu','lug','ago','set','ott','nov','dic'][+g.slice(4,6)-1]} ${g.slice(0,4)}` + (g.length > 8 ? ` · prima del ripristino delle ${g.slice(9,11)}:${g.slice(11,13)}` : ''); };
+async function disegnaBackup(){
+  const el = $('bk-imp'); if(!el) return;
+  try {
+    const l = await Cassaforte.elencoBackup();
+    el.innerHTML = l.length ? `<div class="bk-lista">${l.map(x => `<div class="bk-riga"><span>${esc(dataBackup(x.id))}<small>${[x.cloud ? 'cloud' : '', x.dispositivo ? 'questo dispositivo' : ''].filter(Boolean).join(' · ')}</small></span><button type="button" onclick="ripristinaBackup('${x.id}')">Ripristina</button></div>`).join('')}</div>` : '<p class="nota">Ancora nessun backup: il primo si fa da solo entro pochi minuti.</p>';
+  } catch(e){ el.innerHTML = `<p class="nota">Non riesco a leggere i backup (${esc(e.code || e.message)}).</p>`; }
+}
+async function backupOra(){
+  const el = $('bk-imp'); if(el) el.innerHTML = '<p class="nota">Salvo il backup…</p>';
+  try { const id = await Cassaforte.backupGiornaliero(true); toast(id ? 'Backup salvato' : 'Niente da salvare'); } catch(e){ toast('Backup non riuscito: ' + (e.code || e.message)); }
+  disegnaBackup();
+}
+async function ripristinaBackup(id){
+  let f; try { f = await Cassaforte.apriBackup(id); } catch(e){ return toast('Non riesco ad aprire il backup: ' + (e.message || e.code)); }
+  const c = Cassaforte.conteggi(f);
+  if(!confirm(`Ripristinare il backup del ${dataBackup(id)}?\n\nContiene: ${c.movimenti} movimenti, ${c.conti} conti, ${c.rate} rate, ${c.giornate} giornate di lavoro, ${c.allenamenti} allenamenti.\n\nPrima salvo una copia dello stato attuale, così puoi tornare indietro.`)) return;
+  toast('Ripristino…');
+  try { await Cassaforte.ripristina(f); toast('Ripristinato: ricarico'); setTimeout(() => location.reload(), 800); }
+  catch(e){ toast('Ripristino non riuscito: ' + (e.code || e.message)); }
+}
+async function esciTutto(){ if(!confirm('Uscire dall\'account su questo dispositivo?')) return; await Cassaforte.esci(); location.reload(); }
+
+/* ---- Altre app nella cassaforte: Palestra ---- */
+let PAL = null, LAV = null;
+// le giornate della sezione Lavoro, per il riquadro "Lavoro" (prossima giornata con nave e molo)
+async function leggiLavoro(){
+  try { const t = await Cassaforte.leggi('dashboard', 'lavoro'); LAV = t ? JSON.parse(t) : null; }
+  catch(e){ console.warn('Lavoro', e); }
+  if(LAV && LAV.giornate && LAV.giornate.length) leggiPorto();
+  if(D) disegna();
+}
+async function leggiPalestra(){
+  try {
+    const t = await Cassaforte.tutti('palestra'), o = {};
+    ['sessioni', 'corpo', 'abbonamento', 'programma', 'muscoli'].forEach(k => { try { o[k] = t[k] != null ? JSON.parse(t[k]) : null; } catch(e){} });
+    PAL = o;
+  } catch(e){ console.warn('Palestra', e); PAL = PAL || {errore: e.code || e.message}; }
+  if(D) disegna();
+}
+// scadenza dell'abbonamento (fino a 30 giorni prima) tra le cose in programma
+function altriEventi(){
+  const a = PAL && PAL.abbonamento, out = [];
+  if(a && a.scadenza && giorniA(a.scadenza) >= 0 && giorniA(a.scadenza) <= 30)
+    out.push({d:a.scadenza, titolo:`Abbonamento ${a.nome || 'palestra'}`, app:'Palestra · abbonamento', tag:'PAL', amt:null, senzaImporto:true, href:'palestra/?t=abbo'});
+  return out;
+}
+function allenamento(d){
+  if(!PAL || !PAL.programma || !window.Programma) return null;
+  const g = Programma.giorno(PAL.programma, d); if(!g) return null;
+  const mu = PAL.muscoli && PAL.muscoli.length ? PAL.muscoli : Programma.MUSCOLI_BASE, nome = id => (mu.find(m => m.id === id) || {nome:id}).nome;
+  return {d, titolo:g.ordine.map(nome).join(' → '), app:'Palestra · allenamento', tag:'GYM', amt:null, senzaImporto:true, href:'palestra/'};
+}
+// allenamento di oggi già fatto (una sessione salvata oggi nella Palestra): si passa al prossimo
+const allenatoOggi = () => !!(PAL && PAL.sessioni && PAL.sessioni.some(x => x.d === isoLocale(new Date())));
+function prossimoAllenamento(){
+  const oggi = new Date(); for(let i = allenatoOggi() ? 1 : 0; i < 8; i++){ const a = allenamento(isoLocale(new Date(oggi.getFullYear(), oggi.getMonth(), oggi.getDate() + i))); if(a) return a; }
+  return null;
+}
+function tuttaAgenda(){ const al = prossimoAllenamento(); return [...D.agenda, ...altriEventi(), ...(al ? [al] : []), ...GC.eventi.filter(e => giorniA(e.d) >= 0 && giorniA(e.d) <= 30)].sort((x, y) => x.d.localeCompare(y.d)); }
+function hrefAgenda(a){ return a.href || 'bilancio/'; }
+const ICO_PESI = '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 6.5v11M17.5 6.5v11M3 9.5v5M21 9.5v5M6.5 12h11"/></svg>';
+const ICO_LAVORO = '<svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="18" height="13" rx="2.5"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2M3 13h18"/></svg>';
+// riquadro Palestra: la coppia di oggi (o il prossimo allenamento)
+function tilePalestra(){
+  const t = {href:'palestra/', lab:'Palestra', app:'oggi', cl:'testo', ico:ICO_PESI};
+  if(!PAL) return {...t, v:'…', s:'leggo il programma'};
+  if(PAL.errore) return {...t, v:'Non leggibile', s:PAL.errore};
+  if(!PAL.programma || !(PAL.programma.blocchi || []).length) return {...t, app:'', v:'Nessun programma', s:'imposta i blocchi nella Palestra'};
+  const mu = PAL.muscoli && PAL.muscoli.length ? PAL.muscoli : Programma.MUSCOLI_BASE, nome = id => (mu.find(m => m.id === id) || {nome:id}).nome;
+  const oggi = new Date(), g = Programma.giorno(PAL.programma, isoLocale(oggi)), fatto = allenatoOggi();
+  const coppia = g => g.ordine.length > 1 ? `${g.secondoGiorno ? 'secondo' : 'primo'} giorno della coppia · priorità ${nome(g.ordine[0]).toLowerCase()}` : 'un muscolo solo';
+  if(g && !fatto) return {...t, v:g.ordine.map(nome).join(' → '), s:coppia(g)};
+  // oggi riposo, o allenamento di oggi già finito: il prossimo
+  for(let i = 1; i < 8; i++){
+    const d = new Date(oggi.getFullYear(), oggi.getMonth(), oggi.getDate() + i), n = Programma.giorno(PAL.programma, isoLocale(d));
+    if(!n) continue;
+    const quando = i === 1 ? 'domani' : d.toLocaleDateString('it-IT', {weekday:'long'});
+    if(fatto) return {...t, app:quando, v:n.ordine.map(nome).join(' → '), s:`oggi fatto ✓ · ${coppia(n)}`};
+    return {...t, v:'Riposo', s:`${quando}: ${n.ordine.map(nome).join(' → ')}`};
+  }
+  return {...t, v:fatto ? 'Fatto ✓' : 'Riposo', s:'nessun allenamento in programma'};
+}
+// riquadro Lavoro: il prossimo evento del calendario di lavoro scelto nelle impostazioni
+// la prossima giornata segnata nella sezione Lavoro (da oggi in poi): nave, agenzia e molo
+// dalle 12 in poi la giornata di oggi è finita: il riquadro guarda da domani. Se domani non si lavora al porto
+// mostra gli appuntamenti di domani (se ce ne sono), se no la prossima giornata di lavoro
+function giornoLavoro(){
+  const ora = new Date(), oggi = isoLocale(ora);
+  return ora.getHours() < 12 ? oggi : piuGiorno(oggi, 1);
+}
+function lavoroDomani(){
+  const domani = piuGiorno(isoLocale(new Date()), 1);
+  return ((LAV && LAV.giornate) || []).some(g => g.d === domani) || !!(gcalAttivi().length && GC.eventi.some(e => e.lavoro && e.d === domani));
+}
+function appuntamentiDomani(){
+  if(!gcalAttivi().length) return [];
+  const domani = piuGiorno(isoLocale(new Date()), 1);
+  return GC.eventi.filter(e => e.d === domani).sort((a, b) => a.ts - b.ts);
+}
+function prossimaGiornata(){
+  const dal = giornoLavoro();
+  return ((LAV && LAV.giornate) || []).filter(g => g.d >= dal).sort((a, b) => a.d.localeCompare(b.d))[0] || null;
+}
+function tileLavoro(){
+  const t = {href:'#', lab:'Lavoro', app:'Google', cl:'testo', ico:ICO_LAVORO};
+  // prima le giornate della sezione Lavoro (ci sono tutte le agenzie); Google solo se ha un impegno di lavoro prima
+  if(new Date().getHours() >= 12 && !lavoroDomani()){
+    const ap = appuntamentiDomani();
+    if(ap.length){ lavoroEv = ap[0];
+      return {...t, lab:'Domani', app:'niente porto', v:ap[0].titolo + (ap.length > 1 ? ` · +${ap.length - 1}` : ''), s:quando(ap[0]), href:'#', on:'apriNelCalendario(lavoroEv)'}; }
+  }
+  const dal = giornoLavoro(), g = prossimaGiornata(), evG = gcalAttivi().length ? GC.eventi.filter(e => e.lavoro && e.fineTs > Date.now() && e.d >= dal).sort((a, b) => a.ts - b.ts)[0] : null;
+  if(g && !(evG && evG.d < g.d)){
+    const m = g.nave && PORTO ? moloDi({titolo: g.nave, d: g.d}) : null;
+    const molo = m ? `<div class="molo-t"><small>Molo</small><b class="mono">${esc(m.attesa ? '…' : m.banchina || '–')}</b>${m.banchina ? '' : `<small>${m.attesa ? 'non ancora pubblicato' : 'da definire'}</small>`}</div>` : '';
+    const gg = giorniA(g.d), giorno = gg === 0 ? 'oggi' : gg === 1 ? 'domani' : new Date(g.d + 'T12:00').toLocaleDateString('it-IT', {weekday:'short', day:'numeric', month:'short'});
+    return {...t, app:'Lavoro', v:g.nave || 'Nave da inserire', s:[giorno, g.agenzia, g.tipo].filter(Boolean).join(' · '), on:"dashVai('lavoro/')", ...(molo ? {bars: molo} : {})};
+  }
+  if(!GCAL_CLIENT_ID) return {...t, v:'Da configurare', s:'Google Calendar non ancora collegato', on:'apriImpostazioni()'};
+  if(!gcalAttivi().length && AUTO.inCorso) return {...t, v:'…', s:'collego Google'};
+  if(!gcalAttivi().length && passoAuto()) return {...t, v:'Mostra eventi', s:'per non toccare più: Impostazioni → accesso automatico', on:'gcalCollegaPrimo()'};
+  if(!gcalAttivi().length) return {...t, v:GC.conti.length ? 'Mostra eventi' : 'Collega Google', s:'tocca per vedere il prossimo impegno', on:'gcalCollegaPrimo()'};
+  const ora = Date.now(), ev = GC.eventi.filter(e => e.lavoro && e.fineTs > ora && e.d >= dal).sort((a, b) => a.ts - b.ts)[0];
+  if(!ev) return {...t, app:GC.nomeLavoro || 'Google', v:'Nessun impegno', s:'nei prossimi 30 giorni', href:'https://calendar.google.com/', blank:true};
+  const molo = ev.molo ? `<div class="molo-t"><small>Molo</small><b class="mono">${esc(ev.molo.attesa ? '…' : ev.molo.banchina || '–')}</b>${ev.molo.banchina ? '' : `<small>${ev.molo.attesa ? 'non ancora pubblicato' : 'da definire'}</small>`}</div>` : '';
+  lavoroEv = ev;
+  return {...t, app:GC.nomeLavoro || 'Google', v:ev.titolo, s:quando(ev), href:'#', on:'apriNelCalendario(lavoroEv)', ...(molo ? {bars: molo} : {})};
+}
+function quando(ev){
+  const g = giorniA(ev.d), giorno = g === 0 ? 'oggi' : g === 1 ? 'domani' : new Date(ev.d + 'T12:00').toLocaleDateString('it-IT', {weekday:'short', day:'numeric', month:'short'});
+  return ev.ora ? `${giorno} alle ${ev.ora}${ev.ts < Date.now() ? ' · in corso' : ''}` : `${giorno} · tutto il giorno`;
+}
+
+/* ---- Ricerca tra i movimenti di Bilancio ---- */
+$('q').addEventListener('input', e => {
+  const q = e.target.value.trim(), box = $('ris');
+  if(q.length < 2 || !pronto){ box.classList.remove('on'); return; }
+  let r = []; try { r = ponte().cerca(q); } catch(err){}
+  box.innerHTML = r.length ? r.map(t => `<a class="ris" href="bilancio/"><div>${esc(t.testo)}<small>${esc(t.cat)} · ${fmtD(t.d)}</small></div><b class="mono" style="color:${t.amt<0?'#ffb3a1':'#9be3bd'}">${t.amt<0?'-':'+'}${eur2(Math.abs(t.amt))}</b></a>`).join('') : '<div class="vuoto" style="padding:10px">Nessun movimento.</div>';
+  box.classList.add('on');
+});
+document.addEventListener('click', e => { if(!e.target.closest('.cerca')) $('ris').classList.remove('on'); });
+
+/* ---- Bilancio in background: attesa, sblocco, aggiornamenti ---- */
+function mostraSblocco(){ bil.classList.add('mostra'); bil.removeAttribute('aria-hidden'); bil.tabIndex = 0; $('sblocco').classList.add('on'); $('stato').classList.remove('on'); }
+function chiudiSblocco(){ $('sblocco').classList.remove('on'); bil.classList.remove('mostra'); bil.setAttribute('aria-hidden','true'); bil.tabIndex = -1; }
+let attese = 0, passata = false, giro = null;
+function controlla(){
+  attese++;
+  // Bilancio aperto qui sotto chiede la passphrase (non ricordata su questo dispositivo): gli passo la chiave appena sbloccata
+  if(!passata && Cassaforte.key){
+    try { const g = W().document.getElementById('gate'); if(g && g.dataset.st==='unlock' && ponte() && ponte().haMeta()){ passata = true; W().openVault(Cassaforte.key); return; } } catch(e){}
+  }
+  if(bilancioPronto()){
+    if(!pronto){ pronto = true; if($('sblocco').classList.contains('on')) chiudiSblocco(); $('stato').classList.remove('on');
+      // le altre app si preparano in sottofondo, una alla volta e a Dashboard già disegnata: aprendole dopo, il cambio di vista è immediato
+      setTimeout(() => precarica(['palestra', 'lavoro']), 2000);
+      // backup giornaliero (una volta al giorno, in sottofondo), e di nuovo ogni 6 ore se la Dashboard resta aperta
+      const bk = () => Cassaforte.backupGiornaliero().catch(e => console.warn('backup', e));
+      setTimeout(bk, 20000); setInterval(bk, 6 * 3600e3);
+      // registro: un'apertura ogni 12 ore per dispositivo, gli eventi in attesa, e l'avviso se altrove è successo qualcosa
+      try { const t = +localStorage.getItem('dg:apertura') || 0; if(Date.now() - t > 12 * 3600e3){ localStorage.setItem('dg:apertura', String(Date.now())); Cassaforte.segnala('apertura', 'Dashboard'); } } catch(e){}
+      setTimeout(() => Cassaforte.scriviRegistro().catch(() => {}), 5000);
+      setTimeout(controllaAttivita, 8000); }
+    leggi();
+    // i dati arrivano subito: poi basta ogni 30 secondi
+    if(attese > 30 || (D && attese > 6)){ clearInterval(giro); giro = setInterval(leggi, 30000); }
+  } else if(bloccato() && vista !== 'bilancio' && !$('sblocco').classList.contains('on')) mostraSblocco();
+  else if(!pronto) $('stato').classList.add('on');
+}
+document.addEventListener('visibilitychange', () => { if(document.visibilityState==='visible' && pronto) setTimeout(leggi, 1500); });
+async function bloccaTutto(){ await Cassaforte.blocca(); location.reload(); }
+
+/* ---- Le app si aprono qui dentro (#bilancio, #mezzi, #palestra): la barra a sinistra resta ---- */
+let vista = 'panoramica';
+var graficoVisto; // il grafico della panoramica si è già disegnato una volta
+const PERCORSI = { bilancio: 'bilancio/', palestra: 'palestra/', lavoro: 'lavoro/' };
+const frames = {};
+// la prossima parte solo quando la precedente ha finito di caricarsi e il telefono è libero (Mezzi, la più pesante, per ultima)
+function precarica(lista){
+  const v = lista.shift(); if(!v) return;
+  const dopo = () => (window.requestIdleCallback || (f => setTimeout(f, 300)))(() => precarica(lista), {timeout: 4000});
+  if(frames[v]) return dopo();
+  frameDi(v).addEventListener('load', () => setTimeout(dopo, 1200), {once: true});
+}
+function frameDi(v, extra){
+  if(!frames[v]){
+    const f = document.createElement('iframe');
+    f.src = PERCORSI[v] + (extra || ''); f.title = {palestra:'Palestra', lavoro:'Lavoro'}[v];
+    $('app-vista').appendChild(f); frames[v] = f;
+  }
+  return frames[v];
+}
+// sul telefono le app si vedono al 90%: più spazio in larghezza, niente cifre che vanno a capo
+const SCALA_TEL = .9, tel = () => innerWidth <= 700;
+const sabPx = () => $('sab-sonda').getBoundingClientRect().height;
+function dimensiona(){
+  const box = $('app-vista'); if(!document.body.classList.contains('in-app')) return;
+  const sotto = tel() ? 8 + sabPx() : 18; // sul telefono, dentro un'app, il dock in basso si nasconde; l'app finisce sopra la barra dell'iPhone
+  // sul telefono il riquadro è fisso allo schermo (CSS): niente altezza calcolata, così la pagina non può scorrere
+  box.style.height = tel() ? '' : Math.max(320, innerHeight - box.getBoundingClientRect().top - sotto) + 'px';
+  if(vista === 'bilancio'){
+    const r = box.getBoundingClientRect(), k = tel() ? SCALA_TEL : 1; bil.style.inset = 'auto';
+    Object.assign(bil.style, {left: r.left + 'px', top: r.top + 'px', width: r.width / k + 'px', height: r.height / k + 'px', transform: k < 1 ? `scale(${k})` : '', transformOrigin: '0 0'});
+  }
+}
+function liberaBil(){ bil.classList.remove('in-vista'); bil.title = 'Bilancio (in background)'; ['inset','left','top','width','height','transform','transformOrigin'].forEach(k => bil.style[k] = ''); }
+function mostraVista(v, extra = ''){
+  vista = PERCORSI[v] ? v : 'panoramica';
+  chiudiPannello(); if($('sblocco').classList.contains('on')) chiudiSblocco();
+  document.body.classList.toggle('in-app', vista !== 'panoramica');
+  { const l = vista !== 'panoramica' ? largoDi(vista) : {si: false, px: 0}; applicaLargo(l.si, l.px); }
+  const etich = {panoramica:'Panoramica', bilancio:'Bilancio', palestra:'Palestra', lavoro:'Lavoro'}[vista];
+  document.querySelectorAll('nav .navbtn, .v5top .p').forEach(b => { const on = b.getAttribute('aria-label') === etich; b.classList.toggle('on', on); on ? b.setAttribute('aria-current', 'page') : b.removeAttribute('aria-current'); });
+  document.querySelectorAll('.seg a').forEach(a => a.classList.toggle('on', a.textContent.trim() === etich));
+  Object.entries(frames).forEach(([k, f]) => f.classList.toggle('on', k === vista));
+  liberaBil();
+  Moto.aggiorna(); // la barra in alto e il dock cambiano forma: le pillole si rimettono al loro posto
+  if(vista === 'panoramica'){ Moto.entra(document.querySelector('main')); Moto.entra(document.querySelector('aside')); if(pronto){ leggi(); leggiLavoro(); leggiPalestra(); } return; }
+  scrollTo(0, 0); // dalla panoramica scorsa in giù: l'app parte sotto la barra, non nascosta dietro
+  if(vista === 'bilancio'){
+    bil.classList.add('in-vista'); bil.removeAttribute('aria-hidden'); bil.tabIndex = 0; bil.title = 'Bilancio'; dimensiona();
+    // bilancio/#passphrase e #impostazioni: la finestra giusta di Bilancio
+    if(/#(passphrase|impostazioni)/.test(extra)){ try { W().openSettings(); if(extra.includes('passphrase')) W().openPass(); } catch(e){} }
+    entraApp(bil);
+    try { bil.contentWindow.postMessage({tipo: 'bilancio-visibile'}, location.origin); } catch(e){} // domande in sospeso di Bilancio (es. pulizia di Mezzi)
+    return;
+  }
+  bil.setAttribute('aria-hidden', 'true'); bil.tabIndex = -1;
+  const nuovo = !frames[vista], f = frameDi(vista, extra); f.classList.add('on'); dimensiona();
+  // palestra/?t=abbo: la scheda giusta anche se la Palestra è già aperta
+  const t = new URLSearchParams((extra.split('#')[0] || '').replace(/^\?/, '')).get('t');
+  if(t && !nuovo){ try { f.contentWindow.vaiScheda(t); } catch(e){} }
+  if(!nuovo) entraApp(f);
+}
+// un'app chiede di ricaricare (trascinata giù dall'alto): si ricarica tutta la Dashboard, che riapre la stessa app
+addEventListener('message', e => { if(e.origin === location.origin && e.data && e.data.tipo === 'ricarica' && Object.values(frames).concat(bil).some(f => f.contentWindow === e.source)) location.reload(); });
+// l'app aperta chiede più larghezza (o la restituisce) cambiando scheda; vale solo se è quella in vista
+addEventListener('message', e => {
+  if(e.origin !== location.origin || !e.data || e.data.tipo !== 'moto-largo') return;
+  const f = vista === 'bilancio' ? bil : frames[vista];
+  if(f && e.source === f.contentWindow) applicaLargo(!!e.data.si, e.data.px);
+});
+function largoDi(v){ try { const w = (v === 'bilancio' ? bil : frames[v]).contentWindow; return {si: !!w.motoLargo, px: w.motoLargoPx || 0}; } catch(e){ return {si: false, px: 0}; } }
+// la larghezza della scheda: quella che serve all'app (px) più i bordi della Dashboard, mai meno del solito né oltre lo schermo
+let largoOra = {si: false, px: 0};
+function applicaLargo(si, px){
+  largoOra = {si, px}; document.body.classList.toggle('largo', si);
+  const w = document.querySelector('.wrap');
+  if(!si || innerWidth < 1600 || vista === 'panoramica'){ w.style.maxWidth = ''; return; }
+  const bordi = w.getBoundingClientRect().width - $('app-vista').getBoundingClientRect().width;
+  w.style.maxWidth = Math.min(innerWidth, Math.max(1440, Math.ceil((px || innerWidth) + bordi))) + 'px';
+}
+addEventListener('resize', () => { if(largoOra.si) applicaLargo(largoOra.si, largoOra.px); });
+// mentre la scheda si allarga o si stringe, Bilancio (posizionato a mano) la segue
+if(window.ResizeObserver) new ResizeObserver(() => dimensiona()).observe($('app-vista'));
+/* tastiera aperta sul telefono dentro un'app: l'iPhone sposta la pagina in su (anche troppo: la scheda e il campo
+   finivano fuori dallo schermo). L'app allora si ferma tra la cima dello schermo e la tastiera (copre la barra in alto)
+   e lo spostamento dell'iPhone si annulla: con il campo già sopra la tastiera non serve. La posizione dipende solo
+   dall'altezza della tastiera, non da quanto l'iPhone ha spostato la pagina (seguirlo faceva rimbalzare la scheda).
+   Dentro l'app il campo torna in vista da solo (comune/fisso.js). Chiusa la tastiera torna tutto com'era. */
+(function(){
+  const vv = window.visualViewport; if(!vv) return;
+  let raf = 0, su = false, hFatta = 0, tRiporta = 0, riporta = false; // riporta: l'iPhone si lascia riportare in cima
+  function segui(){
+    raf = 0; const box = $('app-vista');
+    const aperta = tel() && document.body.classList.contains('in-app') && innerHeight - vv.height > 120;
+    if(!aperta){ if(su){ su = false; hFatta = 0; riporta = false; delete box.dataset.spost; document.body.classList.remove('tastiera'); box.style.top = box.style.bottom = ''; dimensiona(); } return; }
+    const h = Math.round(vv.height);
+    if(!su || Math.abs(h - hFatta) > 30){ // solo quando la tastiera si apre o cambia altezza
+      su = true; delete box.dataset.spost; hFatta = h; document.body.classList.add('tastiera');
+      box.style.top = 'calc(var(--sat) + 6px)'; box.style.bottom = Math.max(0, innerHeight - h + 4) + 'px';
+      dimensiona();
+    }
+    if(vv.offsetTop > 0 || scrollY > 0){ clearTimeout(tRiporta); tRiporta = setTimeout(() => { const o = vv.offsetTop; scrollTo(0, 0); if(vv.offsetTop < o) riporta = true; else setTimeout(ripiego, 400); }, 50); }
+  }
+  // se l'iPhone non si lascia riportare la pagina in cima, l'app si sposta una volta sola dove si vede (niente inseguimenti)
+  function ripiego(){
+    const box = $('app-vista'), off = Math.round(vv.offsetTop);
+    if(!su || riporta || off < 20 || box.dataset.spost) return;
+    box.dataset.spost = '1';
+    box.style.top = `calc(var(--sat) + 6px + ${off}px)`; box.style.bottom = Math.max(0, innerHeight - off - hFatta + 4) + 'px';
+    dimensiona();
+  }
+  const pianifica = () => { if(!raf) raf = requestAnimationFrame(segui); };
+  vv.addEventListener('resize', pianifica); vv.addEventListener('scroll', pianifica);
+})();
+// l'app aperta fa entrare la sua schermata come quando si cambia scheda al suo interno
+function entraApp(f){ try { const w = f.contentWindow; if(w.Moto && w.motoVista) w.Moto.entra(w.motoVista()); } catch(e){} }
+// l'evidenziazione della voce attiva scivola da una voce all'altra (dock e barra in alto)
+Moto.pillola(document.querySelector('nav.glass')); Moto.pillola(document.querySelector('.v5top .centro'));
+const vistaDaHash = () => ({'#bilancio':'bilancio', '#palestra':'palestra', '#lavoro':'lavoro'})[location.hash] || 'panoramica';
+function dashVai(dest){
+  const m = String(dest || '').match(/^(bilancio|palestra|lavoro)\/(.*)$/);
+  const v = m ? m[1] : 'panoramica';
+  const h = v === 'panoramica' ? '' : '#' + v;
+  if(location.hash !== h) history.pushState(null, '', location.pathname + h);
+  mostraVista(v, m ? m[2] : '');
+}
+window.dashVai = dashVai;
+addEventListener('popstate', () => mostraVista(vistaDaHash()));
+addEventListener('resize', dimensiona);
+// i link della Dashboard verso le app (riquadri, scadenze, barra) cambiano vista invece di aprire un'altra pagina
+document.addEventListener('click', e => {
+  const a = e.target.closest('a[href]'); if(!a || a.target === '_blank' || e.defaultPrevented || a.closest('.cf-porta')) return; // la porta (prima volta) apre Bilancio da solo
+  const h = a.getAttribute('href');
+  if(/^(bilancio|palestra|lavoro)\//.test(h)){
+    e.preventDefault();
+    dashVai(h);
+  }
+  else if(h === '#' && (a.closest('nav') || a.closest('.seg') || a.closest('.v5top'))){ e.preventDefault(); dashVai(''); }
+});
+
+/* ---- Accesso unico: account e passphrase si chiedono qui, poi le app si aprono senza chiedere ---- */
+(async () => {
+  // Firebase non ancora configurato (comune/config.js vuoto): spiega cosa fare invece di dare errori
+  const fbc = (window.CONFIG_APP || {}).firebase || {};
+  if(!['apiKey', 'authDomain', 'projectId', 'appId'].every(k => typeof fbc[k] === 'string' && fbc[k].trim())){
+    const st = $('stato'); st.classList.add('on'); Object.assign(st.style, {borderRadius:'18px', width:'min(520px, 92vw)', textAlign:'center', lineHeight:'1.5', top:'40%', bottom:'auto'});
+    st.innerHTML = '<b>Manca la configurazione di Firebase.</b><br>Apri il file <code>comune/config.js</code>, incolla i dati del tuo progetto Firebase e ricarica la pagina. I passaggi sono nel README.';
+    return;
+  }
+  await Cassaforte.porta({ nome: 'il tuo account', bilancio: 'bilancio/' });
+  bil.src = 'bilancio/index.html';
+  // arrivato da un'app aperta da sola (?torna=…): si apre qui dentro
+  const torna = new URLSearchParams(location.search).get('torna');
+  if(['bilancio/', 'palestra/', 'lavoro/'].includes(torna)){ history.replaceState(null, '', location.pathname); dashVai(torna); }
+  else if(vistaDaHash() !== 'panoramica') mostraVista(vistaDaHash());
+  giro = setInterval(controlla, 1000);
+  leggiPalestra(); setInterval(leggiPalestra, 60000);
+  leggiLavoro(); setInterval(leggiLavoro, 60000);
+  disegnaGoogle();
+  if(GCAL_CLIENT_ID){ if(GC.conti.length) caricaGis().catch(() => {}); gcalAuto(); }
+})();
+</script>
+</body>
+</html>

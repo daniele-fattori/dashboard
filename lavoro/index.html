@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<!-- Sicurezza: da dove possono arrivare script, stili e immagini e con chi si può parlare (CSP). Anche se un testo
+     malevolo riuscisse a entrare nella pagina, non potrebbe caricare codice da altri siti né mandare i dati altrove. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://www.gstatic.com https://cdnjs.cloudflare.com https://accounts.google.com https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com https://accounts.google.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https://*.tile.openstreetmap.org https://*.googleusercontent.com https://www.gstatic.com; connect-src 'self' https://firestore.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://oauth2.googleapis.com https://accounts.google.com https://www.gstatic.com https://api.coingecko.com https://api.binance.com https://nominatim.openstreetmap.org https://router.project-osrm.org https://api.openrouteservice.org; frame-src 'self' https://accounts.google.com https://apis.google.com https://*.firebaseapp.com; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#1a1411">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Lavoro">
+<link rel="icon" type="image/png" href="../dashboard-favicon.png">
+<link rel="apple-touch-icon" href="../dashboard-180.png">
+<title>Lavoro</title>
+<script src="../comune/config.js"></script>
+<script src="../comune/fisso.js"></script>
+<script src="../comune/moto.js"></script>
+<script src="../comune/agenzie.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preconnect" href="https://www.gstatic.com">
+<link rel="preconnect" href="https://firestore.googleapis.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+<!--
+  Lavoro: le giornate per agenzia e nave, con la tariffa (lorda, netta, extra). Solo la schermata Giornate.
+  Dati cifrati nella cassaforte comune (comune/cassaforte.js), voce bilancio/{uid}/dashboard/lavoro:
+  {giornate:[{id, d, agenzia, nave, tipo, lordo, extra, stato:''|'fatturato'|'pagato', fattura, dataFattura, dataPagamento, note}], aliquote}
+  Netto = lordo − ritenuta (21% sull'85%) + rivalsa 4%, come nel foglio Numbers; totale = netto + extra.
+-->
+<style>
+:root{
+  --ink:#fff; --ink2:rgba(255,255,255,.76); --ink3:rgba(255,255,255,.6);
+  --acc:#F2711C; --acc-soft:#ffb07a;
+  --glass:linear-gradient(rgba(30,18,10,.42),rgba(30,18,10,.42)),rgba(255,255,255,.04); --line:rgba(255,255,255,.22); --campo:rgba(0,0,0,.28);
+  --ok:#7fd3a8; --ko:#ffb3a1; --warn:#f5c46b; --blu:#8ab4f8;
+  --sat:env(safe-area-inset-top); --sab:env(safe-area-inset-bottom);
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{min-height:100vh;font-family:Manrope,system-ui,sans-serif;color:var(--ink);background:#17120f;-webkit-font-smoothing:antialiased}
+body::before{content:'';position:fixed;inset:0;z-index:-1;background:url(../comune/sfondo.svg) center/cover no-repeat}
+html.incorporata body{background:transparent} html.incorporata body::before{display:none}
+html.incorporata{--sat:0px;--sab:0px}
+/* dentro la Dashboard la sfocatura dei riquadri vede solo il fondo trasparente della pagina: costava senza vedersi */
+html.incorporata .glass:not(.tabs):not(.toast):not(.recupero){-webkit-backdrop-filter:none;backdrop-filter:none}
+:root{color-scheme:dark}
+button,input,select,textarea{font:inherit;color:inherit}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace}
+.glass{background:var(--glass);-webkit-backdrop-filter:blur(22px) saturate(150%);backdrop-filter:blur(22px) saturate(150%);border:1px solid var(--line);box-shadow:0 10px 40px rgba(20,10,0,.18), inset 0 1px 0 rgba(255,255,255,.28);text-shadow:0 1px 3px rgba(40,20,5,.45)}
+.tabs.glass{background:rgba(30,20,14,.55)}
+html.incorporata .tabs.glass{background:rgba(30,20,14,.85);-webkit-backdrop-filter:none;backdrop-filter:none}
+.wrap{max-width:760px;transition:max-width .55s cubic-bezier(.3,.85,.3,1);margin:0 auto;padding:calc(14px + var(--sat)) 16px calc(110px + var(--sab))}
+
+header.top{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+.tondo{width:44px;height:44px;border-radius:99px;border:1px solid var(--line);background:rgba(0,0,0,.28);display:grid;place-items:center;color:var(--ink2);text-decoration:none;cursor:pointer;flex:none}
+header.top h1{margin:0;font-size:22px;font-weight:800;flex:1 1 auto}
+.sync{width:9px;height:9px;border-radius:99px;background:var(--ok);flex:none}
+.sync.salvo{background:var(--warn)}.sync.err{background:#ff7a5c}
+
+.card{border-radius:22px;padding:16px;margin-bottom:12px}
+.card h2{margin:0 0 4px;font-size:15px;font-weight:800}
+.sez{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:18px 2px 10px}
+.sez h2{margin:0;font-size:14px;font-weight:800;padding-left:10px;border-left:3px solid var(--acc)}
+.sez small{font-size:12px;color:var(--ink2)}
+.nota{font-size:12.5px;color:var(--ink2);margin:4px 0 0;line-height:1.45}
+.vuoto{font-size:13px;color:var(--ink3);padding:14px 4px;text-align:center}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;padding:0 18px;border:0;border-radius:99px;background:var(--acc);color:#1a1411;font-weight:800;font-size:14px;cursor:pointer;text-decoration:none}
+.btn.ghost{background:rgba(255,255,255,.1);color:#fff}
+.btn.rosso{background:rgba(110,28,18,.45);color:#ffd3c8;border:1px solid rgba(255,140,110,.35)}
+.btn.piccolo{min-height:36px;padding:0 14px;font-size:13px}
+.link{background:none;border:0;color:var(--acc-soft);font-weight:700;font-size:13px;cursor:pointer;min-height:44px;padding:0 4px}
+
+/* prossima giornata */
+.prossima .quando{font-size:13px;color:var(--ink2);font-weight:700;text-transform:capitalize}
+.prossima .nave{font-size:24px;font-weight:800;margin:4px 0 2px;line-height:1.2}
+.prossima .riga{display:flex;align-items:center;gap:12px;margin-top:10px;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:99px;background:rgba(255,255,255,.12);font-size:12px;font-weight:700}
+.molo{display:inline-flex;flex-direction:column;align-items:center;line-height:1;padding:6px 4px;border-radius:12px;background:var(--acc);color:#fff;width:68px;flex:none;box-sizing:border-box}
+.molo small{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;opacity:.9}
+.molo b{font-size:20px;margin-top:3px}
+.molo.prev{outline:2px dotted rgba(255,255,255,.65);outline-offset:-4px}
+.molo.grande{width:auto;min-width:68px;padding:6px 10px}
+.molo.grande b{font-size:30px}
+.molo.lungo b{font-size:15px;margin-top:5px}
+.molo.grande.lungo b{font-size:22px}
+
+/* elenco giornate */
+.g{display:flex;align-items:center;gap:12px;padding:12px;border-radius:16px;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.08);margin-bottom:8px;cursor:pointer;width:100%;text-align:left;color:#fff}
+.g:hover{background:rgba(255,255,255,.11)}
+.g .data{width:50px;flex:none;text-align:center;line-height:1.1}
+.g .data b{display:block;font-size:19px}
+.g .data small{font-size:10px;color:var(--ink3);text-transform:uppercase;font-weight:700;white-space:nowrap;letter-spacing:-.01em}
+.g .mid{flex:1 1 auto;min-width:0}
+.g .mid b{display:block;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.g .mid small{display:block;font-size:12px;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.g .imp{text-align:right;flex:none;min-width:84px} /* larghezza fissa: i moli accanto stanno tutti in colonna */
+.g .imp b{display:block;font-size:14px}
+.g .imp small{font-size:11px;color:var(--ink3)}
+.manca{color:#ffd98a;text-shadow:0 1px 4px rgba(50,25,0,.75)}
+.proposta{font-style:italic}
+.btn.piccolo{min-height:0;padding:6px 12px;font-size:12px}
+.stato{display:inline-block;font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:99px;margin-top:3px}
+.stato.da{background:rgba(245,196,107,.18);color:var(--warn)}
+.stato.fatturato{background:rgba(138,180,248,.2);color:var(--blu)}
+.stato.pagato{background:rgba(127,211,168,.18);color:var(--ok)}
+.stato.futura{background:rgba(255,255,255,.1);color:var(--ink2)}
+.filtri{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:8px}
+.filtri button{flex:none;border:1px solid var(--line);background:rgba(255,255,255,.07);color:#fff;border-radius:99px;padding:7px 12px;font-size:12.5px;font-weight:700;cursor:pointer}
+.filtri button.on{background:#fff;color:#1d1a18}
+.mese-h{display:flex;justify-content:space-between;align-items:baseline;margin:18px 2px 8px;gap:10px}
+.mese-h b{font-size:15px;text-transform:capitalize}
+.mese-h small{font-size:12px;color:var(--ink2)}
+
+/* fatture e riepilogo */
+.gruppo{border-radius:18px;padding:14px;margin-bottom:10px}
+.gruppo .testa{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.gruppo .testa b{font-size:15px}
+.gruppo .testa .mono{font-size:16px;font-weight:700}
+.gruppo .sotto{font-size:12px;color:var(--ink2);margin-top:4px}
+.kpi{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.kpi div{background:rgba(255,255,255,.07);border-radius:16px;padding:12px}
+.kpi b{display:block;font-size:19px}
+.kpi small{font-size:11.5px;color:var(--ink3)}
+.tab-ag{width:100%;border-collapse:collapse;font-size:13px}
+.tab-ag th{text-align:left;font-size:11px;color:var(--ink3);font-weight:700;padding:6px 4px}
+.tab-ag td{padding:8px 4px;border-top:1px solid rgba(255,255,255,.1)}
+.tab-ag td.n,.tab-ag th.n{text-align:right}
+.barre{display:flex;align-items:flex-end;gap:6px;height:110px;margin-top:10px}
+.barre div{flex:1 1 0;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:10px;color:var(--ink3);height:100%;justify-content:flex-end}
+.barre i{width:100%;max-width:30px;border-radius:7px 7px 3px 3px;background:var(--acc);min-height:3px}
+.barre i.fut{background:rgba(242,113,28,.35)}
+.barre div{cursor:pointer} .barre div.on{color:#fff;font-weight:800}
+.filtri{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin:0 0 10px;padding-bottom:2px}
+.filtri::-webkit-scrollbar{display:none}
+.filtri button{flex:none;border:0;border-radius:99px;padding:7px 12px;background:rgba(255,255,255,.12);color:#fff;font-weight:700;font-size:12.5px;font-family:inherit;cursor:pointer;text-transform:capitalize}
+.filtri button.on{background:var(--acc)}
+.filtri-testa{display:flex;gap:8px;align-items:flex-start}
+/* Riepilogo, Giornate e Fatture su schermo largo: tutta la larghezza, riquadri su più colonne invece che uno sotto l'altro */
+html.largo .wrap{max-width:100%}
+@media (min-width:1100px){
+  html.largo #vista{display:grid;grid-template-columns:repeat(auto-fill,minmax(420px,1fr));gap:0 16px;align-items:start}
+  html.largo #vista>.filtri,html.largo #vista>.filtri-testa,html.largo #vista>.sez,html.largo #vista>.nota,html.largo #vista>.vuoto{grid-column:1/-1}
+  /* gli elenchi di giornate a tutta larghezza, in fondo, con le righe su più colonne */
+  html.largo #vista>.lista{grid-column:1/-1;order:10}
+  html.largo .lista .righe{display:grid;grid-template-columns:repeat(auto-fill,minmax(400px,1fr));gap:0 12px}
+}
+@media (prefers-reduced-motion:reduce){ .wrap{transition:none} }
+.filtri-testa .filtri{flex:1 1 auto;min-width:0}
+.vista-tog{flex:none;display:flex;gap:2px;padding:3px;border-radius:99px;background:rgba(255,255,255,.08)}
+.vista-tog button{border:0;border-radius:99px;padding:5px 10px;background:transparent;color:var(--ink2);font-family:inherit;font-weight:700;font-size:12px;cursor:pointer;white-space:nowrap}
+.vista-tog button.on{background:var(--acc);color:#fff}
+@media (max-width:600px){ .filtri-testa{flex-direction:column-reverse;align-items:stretch;gap:6px} .vista-tog,.filtri-testa>.btn{align-self:flex-end} } /* telefono: il pulsante sopra, i mesi su tutta la riga */
+/* calendario del mese nel riepilogo: stessi colori delle etichette di stato */
+.cal-int,.cal-griglia{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.cal-int{margin:8px 0 4px;font-size:10.5px;font-weight:800;color:var(--ink3);text-align:center}
+.cg{aspect-ratio:1/1.15;border:0;border-radius:10px;background:rgba(255,255,255,.05);color:var(--ink3);font-family:inherit;padding:5px 2px 4px;display:flex;flex-direction:column;align-items:center;gap:1px;cursor:pointer;min-width:0;overflow:hidden}
+.cg b{font-size:13px;line-height:1.1}
+.cg small{font-size:8.5px;font-weight:800;max-width:100%;overflow:hidden;white-space:nowrap}
+.cg i{font-style:normal;font-size:9.5px;margin-top:auto}
+.cg.pieno b{color:#fff}
+.cg.da{background:rgba(245,196,107,.3);color:var(--warn)}
+.cg.fatturato{background:rgba(138,180,248,.2);color:var(--blu)}
+.cg.pagato{background:rgba(127,211,168,.18);color:var(--ok)}
+.cg.futura{background:rgba(255,255,255,.06);color:var(--ink2);box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.3)}
+.cg.oggi{box-shadow:inset 0 0 0 2px var(--acc)}
+/* loghi delle agenzie (Medov, CFFT, Costamed) accanto al nome */
+.lg-ag{width:18px;height:18px;border-radius:5px;object-fit:cover;vertical-align:-4px;margin-right:6px;display:inline-block;background:#fff}
+.lg-ag.grande{width:44px;height:44px;border-radius:12px;margin:0;vertical-align:middle;box-shadow:0 2px 10px rgba(0,0,0,.25)}
+.cg .lg-ag{width:15px;height:15px;border-radius:4px;margin:1px 0 0}
+.filtri .lg-ag{width:16px;height:16px;vertical-align:-3px}
+.lg-ag.lg-nave.media{width:26px;height:26px;border-radius:7px;vertical-align:-3px;margin-right:8px}
+.prossima-testa{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.cal-leg{display:flex;flex-wrap:wrap;gap:6px 12px;margin-top:10px;font-size:11px;color:var(--ink2)}
+.cal-leg span::before{content:'';display:inline-block;width:9px;height:9px;border-radius:3px;margin-right:5px;vertical-align:-1px}
+.cal-leg .da::before{background:var(--warn)} .cal-leg .fatturato::before{background:var(--blu)} .cal-leg .pagato::before{background:var(--ok)} .cal-leg .futura::before{box-shadow:inset 0 0 0 1.5px rgba(255,255,255,.5)}
+@media (min-width:600px){ .cg b{font-size:15px} .cg small{font-size:10px} .cg i{font-size:11px} }
+
+/* finestra */
+.velo{position:fixed;inset:0;z-index:50;background:rgba(10,8,6,.6);display:none;align-items:flex-end;justify-content:center}
+.velo.on{display:flex}
+.foglio{width:min(560px,100%);max-height:92vh;overflow:auto;border-radius:26px 26px 0 0;padding:18px 18px calc(18px + var(--sab));background:#2a211c;border:1px solid var(--line)}
+.foglio-h{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:-18px -18px 12px;padding:18px 18px 10px;position:sticky;top:-18px;z-index:6;background:#2a211c}
+.foglio-h h3{flex:1 1 auto;min-width:0}
+/* il pulsante principale della finestra anche in alto, accanto al titolo: si salva senza scorrere fino in fondo */
+.foglio-h .in-testa{min-height:38px;padding:0 16px;font-size:13.5px;flex:none}
+.foglio-h h3{margin:0;font-size:17px;font-weight:800}
+.campi{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.campi .tutta{grid-column:1/-1}
+.campi label{display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:700;color:var(--ink2);position:relative}
+/* suggerimenti sotto i campi (al posto del menu di sistema, che in Safari a volte compariva trasparente sopra gli altri campi) */
+.sugg{position:absolute;left:0;right:0;top:100%;margin-top:4px;z-index:5;background:#2a211c;border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 30px rgba(0,0,0,.5);max-height:240px;overflow:auto;padding:4px}
+.sugg button{display:flex;justify-content:space-between;align-items:center;gap:8px;width:100%;border:0;background:transparent;color:#fff;font-family:inherit;font-size:14px;font-weight:600;padding:9px 10px;border-radius:8px;text-align:left;cursor:pointer}
+.sugg button:hover,.sugg button.on{background:rgba(255,255,255,.1)}
+.sugg small{flex:none;font-size:10.5px;font-weight:800;color:var(--acc);text-transform:uppercase;letter-spacing:.04em}
+.campi input,.campi select,.campi textarea{height:46px;border-radius:14px;border:1px solid var(--line);background:var(--campo);color:#fff;padding:0 12px;font-size:16px;outline:0;min-width:0;width:100%}
+.campi textarea{height:auto;min-height:64px;padding:10px 12px;resize:vertical}
+.campi input:focus,.campi select:focus,.campi textarea:focus{border-color:var(--acc)}
+.campi select option{background:#2a211c}
+.campi input[type="date"],.campi input[type="time"]{-webkit-appearance:none;appearance:none;-webkit-min-logical-width:0;min-width:0;max-width:100%;display:block;text-align:left} /* iOS: il controllo nativo della data non sfonda la colonna */
+.campi input[type="date"]::-webkit-date-and-time-value{text-align:left;margin:0}
+
+.conti{display:flex;justify-content:space-between;gap:10px;margin-top:12px;padding:12px;border-radius:14px;background:rgba(255,255,255,.06);font-size:13px}
+.conti b{font-size:15px}
+.scelte{max-height:42vh;overflow:auto;margin-top:6px}
+.scelte label{display:flex;align-items:center;gap:10px;padding:9px 4px;border-top:1px solid rgba(255,255,255,.08);font-size:13.5px}
+.scelte input{width:20px;height:20px;accent-color:var(--acc)}
+.azioni{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap}
+.azioni .btn{flex:1 1 140px}
+
+.tabs{position:fixed;left:50%;bottom:calc(12px + var(--sab));transform:translateX(-50%);z-index:30;border-radius:99px;padding:5px;display:flex;gap:2px;max-width:calc(100% - 20px)}
+.tabs button{border:0;background:transparent;color:var(--ink2);border-radius:99px;padding:8px 12px;display:flex;flex-direction:column;align-items:center;gap:2px;font-size:10.5px;font-weight:700;cursor:pointer;min-width:60px}
+.tabs button.on{background:var(--acc);color:#fff}
+.tabs svg{width:19px;height:19px}
+.fab{position:fixed;right:max(16px, calc(50% - 364px));bottom:calc(84px + var(--sab));z-index:31;width:54px;height:54px;border-radius:50%;border:0;background:var(--acc);color:#fff;font-size:28px;cursor:pointer;box-shadow:0 10px 26px rgba(0,0,0,.35)}
+.toast{position:fixed;left:50%;top:calc(14px + var(--sat));transform:translateX(-50%);z-index:60;border-radius:99px;padding:10px 16px;font-size:13px;font-weight:700;display:none}
+.toast.on{display:block}
+@media (max-width:420px){ .tabs button{padding:8px 9px;min-width:54px} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <a class="tondo" href="../" aria-label="Dashboard" title="Dashboard"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg></a>
+    <h1 id="titolo">Lavoro</h1>
+    <span class="sync" id="sync" title="Sincronizzato" aria-label="Sincronizzato"></span>
+  </header>
+  <main id="vista" aria-live="polite"></main>
+</div>
+
+<button class="fab" type="button" onclick="modifica(null)" aria-label="Aggiungi giornata">+</button>
+<input type="file" id="imp-file" accept=".json,application/json" hidden onchange="importa(this.files[0]);this.value=''">
+<div class="velo" id="velo" onclick="if(event.target===this) chiudi()"><div class="foglio" id="foglio" role="dialog" aria-modal="true"></div></div>
+<div class="toast glass" id="toast" role="status"></div>
+
+<script src="../comune/cassaforte.js"></script>
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const nuovoId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+const oggiISO = () => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset()*60000).toISOString().slice(0, 10); };
+const MESI = ['gen','feb','mar','apr','mag','giu','lug','ago','set','ott','nov','dic'];
+const MESI_L = ['gennaio','febbraio','marzo','aprile','maggio','giugno','luglio','agosto','settembre','ottobre','novembre','dicembre'];
+const GG = ['dom','lun','mar','mer','gio','ven','sab'];
+const fmtD = iso => { const [y, m, d] = iso.split('-').map(Number); return `${d} ${MESI[m-1]}${y !== new Date().getFullYear() ? ' ' + y : ''}`; };
+const giornoSett = iso => GG[new Date(iso + 'T12:00').getDay()];
+const giorni = iso => Math.round((new Date(iso + 'T00:00:00') - new Date(oggiISO() + 'T00:00:00')) / 86400000);
+const num = v => { const n = parseFloat(String(v ?? '').replace(',', '.')); return isFinite(n) ? n : null; };
+// sempre col punto delle migliaia (di suo, in italiano, non lo mette sotto le 10.000), come in Bilancio
+const cifre = (v, dec) => v.toLocaleString('it-IT', {minimumFractionDigits: dec, maximumFractionDigits: dec, useGrouping: 'always'});
+const eur = v => cifre(v, 2) + ' €';
+const eur0 = v => cifre(v, 0) + ' €';
+const somma = (l, f) => l.reduce((a, x) => a + (f(x) || 0), 0);
+function toast(m){ const t = $('toast'); t.textContent = m; t.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(() => t.classList.remove('on'), 2400); }
+
+/* ---------------- Dati nella cassaforte ---------------- */
+const BASE = { giornate: [], aliquote: { imponibile: 0.85, ritenuta: 0.21, rivalsa: 0.04 } };
+let L = JSON.parse(JSON.stringify(BASE)), tSalva = null, salvando = false, sporco = false;
+async function carica(){
+  const t = await Cassaforte.leggi('dashboard', 'lavoro');
+  L = t ? {...JSON.parse(JSON.stringify(BASE)), ...JSON.parse(t)} : JSON.parse(JSON.stringify(BASE));
+}
+function salva(){ sporco = true; setSync('salvo'); clearTimeout(tSalva); tSalva = setTimeout(invia, 500); }
+async function invia(){
+  if (salvando) { tSalva = setTimeout(invia, 300); return; }
+  salvando = true; sporco = false;
+  try {
+    const inviato = JSON.stringify(L), scritto = await Cassaforte.scrivi('dashboard', 'lavoro', inviato);
+    // salvato anche da un altro dispositivo nel frattempo: il cloud ha l'unione, qui si adotta tenendo le modifiche fatte intanto
+    if (scritto !== inviato) {
+      L = Cassaforte.unisci(JSON.parse(inviato), L, JSON.parse(scritto)); Cassaforte.adottato('dashboard', 'lavoro');
+      if (JSON.stringify(L) !== scritto) sporco = true;
+      disegna(); toast('Unite le modifiche fatte su un altro dispositivo'); if (sporco) { clearTimeout(tSalva); tSalva = setTimeout(invia, 500); }
+    }
+    setSync(sporco ? 'salvo' : 'ok');
+  }
+  catch(e) { console.error(e); sporco = true; setSync('err'); toast(e.code === 'permission-denied' ? 'Salvataggio rifiutato: controlla le regole di Firestore (voce "dashboard")' : 'Salvataggio non riuscito: riprovo'); tSalva = setTimeout(invia, 4000); }
+  salvando = false;
+}
+function setSync(s){ const el = $('sync'); el.className = 'sync' + (s === 'ok' ? '' : ' ' + s); el.title = el.ariaLabel = {ok:'Sincronizzato', salvo:'Salvataggio…', err:'Errore di salvataggio'}[s]; }
+window.addEventListener('beforeunload', e => { if (sporco) { invia(); e.preventDefault(); e.returnValue = ''; } });
+document.addEventListener('visibilitychange', async () => {
+  if (document.visibilityState !== 'visible' || sporco || salvando || $('velo').classList.contains('on')) return;
+  try { await carica(); disegna(); } catch(e){}
+});
+
+/* conti come nel foglio: netto = lordo − (lordo × 85% × 21%) + (lordo × 4%); totale = netto + extra */
+const netto = g => { const a = L.aliquote, l = num(g.lordo) || 0; return l - l * a.imponibile * a.ritenuta + l * a.rivalsa; };
+const totale = g => netto(g) + (num(g.extra) || 0);
+const ordinate = () => [...L.giornate].sort((a, b) => a.d.localeCompare(b.d));
+const agenzie = () => [...new Set(L.giornate.map(g => g.agenzia).filter(Boolean))].sort();
+// logo dell'agenzia (se è una di quelle conosciute), da mettere prima del nome
+// logo della compagnia della nave (Costa…), prima del nome della nave
+const logoNv = (n, grande) => { const src = window.logoNave ? logoNave(n) : ''; return src ? `<img class="lg-ag lg-nave${grande ? ' media' : ''}" src="${src}" alt="">` : ''; };
+const logoAg = (a, cl = '') => { const src = window.logoAgenzia ? logoAgenzia(a) : ''; return src ? `<img class="lg-ag ${cl}" src="${src}" alt="">` : ''; };
+// niente fatture: una giornata è fatta (verde) o in programma
+const statoDi = g => g.d > oggiISO() ? 'futura' : 'pagato';
+const ETICH = { pagato: 'fatta', fatturato: 'fatta', da: 'fatta', futura: 'in programma' };
+const etichStato = g => { const s = statoDi(g); return `<span class="stato ${s}">${ETICH[s]}</span>`; };
+
+/* ---------------- Moli dal porto ---------------- */
+let PORTO = null;
+async function leggiPorto(){
+  if (!window.Porto) return;
+  try { PORTO = await Porto.leggi(); disegna(); } catch(e) { console.warn('porto', e); }
+}
+function moloDi(g, nave){
+  nave = nave || g.nave;
+  if (!PORTO || !nave) return null;
+  return Porto.trova(PORTO, nave, g.d);
+}
+/* nave proposta per una giornata senza nave: tra le navi in porto quel giorno, quelle della compagnia che l'agenzia
+   segue di solito (imparata dalle giornate con la nave: COSTAMED → Costa…). Una sola: è la proposta. */
+function marcheAgenzia(ag){
+  const m = new Set();
+  L.giornate.forEach(x => { if (x.agenzia === ag && x.nave) { const b = Porto.norm(x.nave).split(' ')[0]; if (b) m.add(b); } });
+  return m;
+}
+function naviProbabili(g){
+  if (g.nave || !PORTO || !g.agenzia) return [];
+  const marche = marcheAgenzia(g.agenzia); if (!marche.size) return [];
+  return naviDelGiorno(g.d).filter(n => marche.has(n.split(' ')[0])).map(titolo);
+}
+const proposta = g => { const l = naviProbabili(g); return l.length === 1 ? l[0] : ''; };
+// testo della nave: quella inserita, o la proposta da confermare, o "da inserire" con le navi della compagnia in porto
+function nomeNave(g, grande){
+  if (g.nave) return logoNv(g.nave, grande) + esc(g.nave);
+  const l = naviProbabili(g);
+  if (l.length === 1) return `${logoNv(l[0], grande)}<span class="proposta">${esc(l[0])}</span> <small class="manca">da confermare</small>`;
+  return `<span class="manca">${grande ? 'Nave da inserire' : 'nave da inserire'}</span>${l.length ? ` <small class="manca">· in porto ${esc(l.join(', '))}</small>` : ''}`;
+}
+// conferma in una volta le navi proposte (una sola possibile per giornata); anche il calendario si aggiorna
+function confermaNavi(){
+  const l = ordinate().filter(g => g.d >= oggiISO() && !g.nave && proposta(g));
+  if (!l.length) return;
+  if (!confirm(`Inserire la nave proposta in ${l.length} ${l.length === 1 ? 'giornata' : 'giornate'}?\n\n` + l.map(g => fmtD(g.d) + ' · ' + proposta(g)).join('\n'))) return;
+  const prima = l.map(g => ({...g}));
+  l.forEach(g => { g.nave = proposta(g); });
+  salva(); disegna();
+  l.forEach((g, i) => avvisaCalendario('salva', prima[i], {...g}));
+  toast(l.length === 1 ? 'Nave inserita' : `${l.length} navi inserite`);
+}
+const badgeMolo = (m, grande) => m ? `<span class="molo${m.fonte === 'mese' ? ' prev' : ''}${grande ? ' grande' : ''}${(m.banchina || '').length > 4 ? ' lungo' : ''}" title="${esc(m.nave + ' · molo ' + (m.banchina || 'da definire') + (m.orari ? ' · ' + m.orari : '') + (m.fonte === 'mese' ? ' · previsione del mese' : ''))}"><small>molo</small><b class="mono">${esc(m.banchina || '–')}</b></span>` : '';
+// navi in porto quel giorno (per scegliere la nave di una giornata)
+const naviDelGiorno = d => PORTO ? [...new Set(PORTO.navi.filter(n => n.d === d).map(n => n.nave))] : [];
+const titolo = s => String(s || '').toLowerCase().replace(/\b\w/g, c => c.toUpperCase());
+
+/* ---------------- Viste ---------------- */
+let tab = 'mesi', filtroAg = ''; // c'è solo la schermata Giornate
+let riepMese = null, riepAg = '';   // riepilogo: mese scelto (0-11, null = anno intero) e, dentro il mese, l'agenzia
+function filtraRiep(m, ag){ riepMese = m; riepAg = ag || ''; disegna(); Moto.entra($('vista')); }
+document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => { tab = b.dataset.t; disegna(); scrollTo(0, 0); Moto.entra($('vista')); });
+// la scheda scelta scivola sotto la voce; la Dashboard fa entrare la vista quando si apre l'app
+window.motoVista = () => $('vista');
+function disegna(){
+  document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.t === tab));
+  $('titolo').textContent = {prossime: 'Lavoro', mesi: 'Giornate', fatture: 'Fatture', riepilogo: 'Riepilogo'}[tab];
+  $('vista').innerHTML = {prossime: vistaProssime, mesi: vistaMesi, fatture: vistaFatture, riepilogo: vistaRiepilogo}[tab]();
+  Moto.largo(tab !== 'prossime', larghezzaLavoro()); // tante giornate e tanti numeri: sugli schermi larghi la scheda si allarga quanto serve
+}
+// colonne da 420 px: tante quante i riquadri affiancabili (al massimo 4; 3 se ci sono solo elenchi di giornate)
+function larghezzaLavoro(){
+  const v = $('vista'), riquadri = [...v.children].filter(el => !el.matches('.filtri,.filtri-testa,.sez,.nota,.vuoto,.lista')).length;
+  const col = Math.max(1, Math.min(tab === 'fatture' ? 3 : 4, riquadri || (v.querySelector('.lista') ? 3 : 1)));
+  return col * 420 + (col - 1) * 16 + 32 + 4;
+}
+function rigaG(g){
+  const m = g.d >= oggiISO() ? moloDi(g, g.nave || proposta(g)) : null;
+  return `<button class="g" type="button" onclick="modifica('${g.id}')">
+    <span class="data"><b>${+g.d.slice(8)}</b><small>${giornoSett(g.d)} ${MESI[+g.d.slice(5, 7) - 1]}</small></span>
+    <span class="mid"><b>${nomeNave(g)}</b><small>${logoAg(g.agenzia)}${esc(g.agenzia || '–')}${g.tipo ? ' · ' + esc(g.tipo) : ''}</small>${etichStato(g)}</span>
+    ${m ? badgeMolo(m) : ''}
+    <span class="imp"><b class="mono">${eur(totale(g))}</b><small>lordo ${eur0(num(g.lordo) || 0)}</small></span></button>`;
+}
+function vistaProssime(){
+  if (!L.giornate.length) return `<section class="card glass"><h2>Nessuna giornata</h2><p class="nota">Aggiungi le giornate con il "+" oppure importa il foglio di quest'anno (file preparato da Claude) da Riepilogo → Importa.</p>
+    <div class="azioni"><button class="btn" type="button" onclick="$('imp-file').click()">Importa giornate</button></div></section>`;
+  const oggi = oggiISO(), fut = ordinate().filter(g => g.d >= oggi), p = fut[0];
+  const daFatt = L.giornate.filter(g => statoDi(g) === 'da'), senzaNave = fut.filter(g => !g.nave);
+  const mp = p && moloDi(p, p.nave || proposta(p)), proposte = fut.filter(g => !g.nave && proposta(g));
+  const quando = p ? (giorni(p.d) === 0 ? 'oggi' : giorni(p.d) === 1 ? 'domani' : new Date(p.d + 'T12:00').toLocaleDateString('it-IT', {weekday: 'long', day: 'numeric', month: 'long'})) : '';
+  return `${p ? `<section class="card glass prossima" onclick="modifica('${p.id}')" style="cursor:pointer">
+      <div class="prossima-testa"><div><div class="quando">${quando} · ${esc(p.agenzia || '')}</div>
+      <div class="nave">${nomeNave(p, true)}</div></div>${logoAg(p.agenzia, 'grande')}</div>
+      <div class="riga">${badgeMolo(mp, true)}${p.tipo ? `<span class="chip">${esc(p.tipo)}</span>` : ''}<span class="chip mono">${eur(totale(p))}</span></div>
+      ${!p.nave && !naviProbabili(p).length && naviDelGiorno(p.d).length ? `<p class="nota">In porto quel giorno: ${esc(naviDelGiorno(p.d).map(titolo).join(', '))}</p>` : ''}
+    </section>` : '<section class="card glass"><h2>Nessuna giornata in programma</h2><p class="nota">Aggiungile con il "+".</p></section>'}
+    ${daFatt.length ? `<section class="card glass" onclick="tab='fatture';disegna()" style="cursor:pointer"><h2>${daFatt.length} ${daFatt.length === 1 ? 'giornata' : 'giornate'} da fatturare</h2><p class="nota">${eur(somma(daFatt, totale))} · tocca per fatturare</p></section>` : ''}
+    <div class="sez"><h2>In programma</h2><small>${fut.length} ${fut.length === 1 ? 'giornata' : 'giornate'}${senzaNave.length ? ` · <span class="manca">${senzaNave.length} senza nave</span>` : ''}</small></div>
+    ${proposte.length ? `<p class="nota" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">Navi proposte dal programma del porto (la compagnia che l'agenzia segue di solito): ${proposte.length} da confermare <button class="btn piccolo" type="button" onclick="confermaNavi()">Conferma tutte</button></p>` : ''}
+    ${fut.slice(1).map(rigaG).join('') || '<p class="vuoto">Nient\'altro in programma.</p>'}`;
+}
+// Giornate: filtro per mese e per agenzia, a elenco o a calendario (la scelta resta su questo dispositivo)
+let giorMese = '', giorCal = (() => { try { return localStorage.getItem('lv:giornateCal') === '1'; } catch (e) { return false; } })();
+function vistaGiornate(cal){ giorCal = cal; try { localStorage.setItem('lv:giornateCal', cal ? '1' : '0'); } catch (e) {} disegna(); Moto.entra($('vista')); }
+function filtraGiornate(mese, ag){ if (mese !== undefined) giorMese = mese; if (ag !== undefined) filtroAg = ag; disegna(); Moto.entra($('vista')); }
+function vistaMesi(){
+  const ags = agenzie(), anno = String(new Date().getFullYear());
+  const mesiCi = [...new Set(L.giornate.map(g => g.d.slice(0, 7)))].sort().reverse();
+  if (giorMese && !mesiCi.includes(giorMese)) giorMese = '';
+  const lista = ordinate().reverse().filter(g => (!filtroAg || g.agenzia === filtroAg) && (!giorMese || g.d.startsWith(giorMese)));
+  const perMese = new Map(); lista.forEach(g => { const k = g.d.slice(0, 7); if (!perMese.has(k)) perMese.set(k, []); perMese.get(k).push(g); });
+  const nomeMese = k => MESI[+k.slice(5) - 1] + (k.startsWith(anno) ? '' : ' ' + k.slice(2, 4));
+  const testa = (k, l) => `<div class="mese-h"><b>${MESI_L[+k.slice(5) - 1]} ${k.slice(0, 4)}</b><small>${l.length} ${l.length === 1 ? 'giornata' : 'giornate'} · netto ${eur(somma(l, netto))} · totale <b class="mono">${eur(somma(l, totale))}</b></small></div>`;
+  return `<div class="filtri-testa"><div class="filtri" role="group" aria-label="Mese"><button type="button" class="${giorMese ? '' : 'on'}" onclick="filtraGiornate('')">Tutti</button>${mesiCi.map(k => `<button type="button" class="${giorMese === k ? 'on' : ''}" onclick="filtraGiornate('${k}')">${nomeMese(k)}</button>`).join('')}</div>
+      <button type="button" class="btn ghost piccolo" style="flex:none;min-height:32px" onclick="allineaCalendario()" title="Controlla che gli eventi del calendario siano alle date delle giornate">↻ Allinea calendario</button>
+      <div class="vista-tog" role="group" aria-label="Vista"><button type="button" class="${giorCal ? '' : 'on'}" aria-pressed="${!giorCal}" onclick="vistaGiornate(false)">☰ Elenco</button><button type="button" class="${giorCal ? 'on' : ''}" aria-pressed="${giorCal}" onclick="vistaGiornate(true)">▦ Calendario</button></div></div>
+    <div class="filtri" role="group" aria-label="Agenzia">${['', ...ags].map(a => `<button type="button" class="${a === filtroAg ? 'on' : ''}" style="text-transform:none" onclick='filtraGiornate(undefined, ${esc(JSON.stringify(a))})'>${a ? logoAg(a) + esc(a) : 'Tutte'}</button>`).join('')}</div>
+    ${[...perMese].map(([k, l]) => giorCal ? `<div class="blocco-mese">${testa(k, l)}${calendarioMese(k, l, '')}</div>` : `<div class="blocco-mese lista">${testa(k, l)}<div class="righe">${l.slice().reverse().map(rigaG).join('')}</div></div>`).join('') || '<p class="vuoto">Nessuna giornata.</p>'}`; // mesi dal più recente, giorni del mese in ordine (2, 3… 28)
+}
+function vistaFatture(){
+  const da = ordinate().filter(g => statoDi(g) === 'da'), fatt = ordinate().filter(g => statoDi(g) === 'fatturato');
+  const perAg = new Map(); da.forEach(g => { const k = g.agenzia || '–'; if (!perAg.has(k)) perAg.set(k, []); perAg.get(k).push(g); });
+  const perFatt = new Map(); fatt.forEach(g => { const k = (g.agenzia || '–') + '|' + (g.fattura || ''); if (!perFatt.has(k)) perFatt.set(k, []); perFatt.get(k).push(g); });
+  const pagate = ordinate().filter(g => g.stato === 'pagato');
+  return `<div class="sez" style="margin-top:0"><h2>Da fatturare</h2><small>${eur(somma(da, totale))}</small></div>
+    ${[...perAg].map(([a, l]) => `<section class="gruppo glass"><div class="testa"><b>${logoAg(a)}${esc(a)}</b><span class="mono">${eur(somma(l, totale))}</span></div>
+      <div class="sotto">${l.length} ${l.length === 1 ? 'giornata' : 'giornate'}: ${l.map(g => fmtD(g.d)).join(', ')}</div>
+      <div class="azioni"><button class="btn piccolo" type="button" onclick="fattura(${esc(JSON.stringify(a))})">Fattura…</button></div></section>`).join('') || '<p class="vuoto">Niente da fatturare.</p>'}
+    <div class="sez"><h2>Fatturate, da incassare</h2><small>${eur(somma(fatt, totale))}</small></div>
+    ${[...perFatt].map(([k, l]) => { const [a, n] = k.split('|'); return `<section class="gruppo glass"><div class="testa"><b>${logoAg(a)}${esc(a)}${n ? ' · fattura n. ' + esc(n) : ''}</b><span class="mono">${eur(somma(l, totale))}</span></div>
+      <div class="sotto">${l.length} ${l.length === 1 ? 'giornata' : 'giornate'}${l[0].dataFattura ? ' · fatturata il ' + fmtD(l[0].dataFattura) : ''}: ${l.map(g => fmtD(g.d)).join(', ')}</div>
+      <div class="azioni"><button class="btn piccolo" type="button" onclick="pagata(${esc(JSON.stringify(k))})">Segna pagata</button></div></section>`; }).join('') || '<p class="vuoto">Nessuna fattura da incassare.</p>'}
+    <div class="sez"><h2>Pagate</h2><small>${eur(somma(pagate, totale))} · ${pagate.length} giornate</small></div>
+    <p class="nota" style="margin:0 2px">Le giornate pagate sono in Giornate, con il numero di fattura.</p>`;
+}
+function vistaRiepilogo(){
+  const anno = String(new Date().getFullYear()), dellAnno = L.giornate.filter(g => g.d.startsWith(anno)), oggi = oggiISO();
+  const mk = riepMese == null ? null : anno + '-' + String(riepMese + 1).padStart(2, '0');
+  const delMese = mk ? dellAnno.filter(g => g.d.startsWith(mk)) : dellAnno;
+  const agMese = [...new Set(delMese.map(g => g.agenzia).filter(Boolean))].sort();
+  if (riepAg && !agMese.includes(riepAg)) riepAg = '';
+  const l = riepAg ? delMese.filter(g => g.agenzia === riepAg) : delMese;
+  const per = s => l.filter(g => statoDi(g) === s);
+  const mesi = Array.from({length: 12}, (_, i) => { const k = anno + '-' + String(i + 1).padStart(2, '0'); const m = dellAnno.filter(g => g.d.startsWith(k)); return {i, tot: somma(m, totale), fut: k > oggi.slice(0, 7)}; });
+  const mx = Math.max(1, ...mesi.map(m => m.tot));
+  const titolo = mk ? MESI_L[riepMese] + ' ' + anno + (riepAg ? ' · ' + riepAg : '') : anno;
+  const filtri = `<div class="filtri" role="group" aria-label="Mese"><button type="button" class="${mk ? '' : 'on'}" onclick="filtraRiep(null)">Anno</button>${MESI.map((n, i) => `<button type="button" class="${riepMese === i ? 'on' : ''}" onclick="filtraRiep(${i})">${n}</button>`).join('')}</div>
+    ${mk && agMese.length ? `<div class="filtri" role="group" aria-label="Agenzia"><button type="button" class="${riepAg ? '' : 'on'}" onclick="filtraRiep(${riepMese})">Tutte</button>${agMese.map(a => `<button type="button" class="${riepAg === a ? 'on' : ''}" style="text-transform:none" onclick='filtraRiep(${riepMese}, ${esc(JSON.stringify(a))})'>${logoAg(a)}${esc(a)}</button>`).join('')}</div>` : ''}`;
+  return `${filtri}<section class="card glass"><h2 style="text-transform:capitalize">${esc(titolo)}</h2>
+      <div class="kpi" style="margin-top:10px">
+        <div><b>${l.length}</b><small>giornate (${l.filter(g => g.d <= oggi).length} fatte)</small></div>
+        <div><b class="mono">${eur0(somma(l, totale))}</b><small>totale (netto + extra)</small></div>
+        <div><b class="mono">${eur0(somma(l, g => num(g.lordo)))}</b><small>lordo</small></div>
+        <div><b class="mono">${eur0(somma(l, netto))}</b><small>netto · extra ${eur0(somma(l, g => num(g.extra)))}</small></div>
+        <div><b class="mono" style="color:var(--ok)">${eur0(somma(per('pagato'), totale))}</b><small>incassato</small></div>
+        <div><b class="mono" style="color:var(--blu)">${eur0(somma(per('fatturato'), totale))}</b><small>fatturato da incassare</small></div>
+        <div><b class="mono" style="color:var(--warn)">${eur0(somma(per('da'), totale))}</b><small>da fatturare</small></div>
+        <div><b class="mono">${eur0(somma(per('futura'), totale))}</b><small>in programma</small></div>
+      </div>
+      ${mk ? '' : `<div class="barre" aria-label="Totale per mese: tocca un mese per vederlo">${mesi.map(m => `<div onclick="filtraRiep(${m.i})" title="${MESI_L[m.i]}"><i class="moto-barra${m.fut ? ' fut' : ''}" style="--i:${m.i};height:${Math.round(m.tot / mx * 80)}%"></i>${MESI[m.i].slice(0, 1).toUpperCase()}</div>`).join('')}</div>`}
+    </section>
+    ${mk ? calendarioMese(mk, l) : ''}
+    ${mk ? `<section class="card glass lista"><h2>Giornate</h2>${l.length ? `<div class="righe">${l.slice().sort((a, b) => a.d.localeCompare(b.d)).map(rigaG).join('')}</div>` : '<p class="nota">Nessuna giornata in questo mese.</p>'}</section>` : ''}
+    <section class="card glass"><h2>Per agenzia</h2>
+      <table class="tab-ag"><tr><th>Agenzia</th><th class="n">Giornate</th><th class="n">Totale</th><th class="n">Da incassare</th></tr>
+      ${agenzie().filter(a => !mk || l.some(g => g.agenzia === a)).map(a => { const x = l.filter(g => g.agenzia === a); return `<tr><td><b>${logoAg(a)}${esc(a)}</b></td><td class="n">${x.length}</td><td class="n mono">${eur0(somma(x, totale))}</td><td class="n mono">${eur0(somma(x.filter(g => g.stato !== 'pagato' && g.d <= oggi), totale))}</td></tr>`; }).join('')}</table>
+    </section>
+    <section class="card glass"><h2>Conti</h2>
+      <p class="nota">Netto = lordo − ritenuta del ${Math.round(L.aliquote.ritenuta * 100)}% sull'${Math.round(L.aliquote.imponibile * 100)}% + rivalsa del ${Math.round(L.aliquote.rivalsa * 100)}%. Totale = netto + extra.</p>
+      <div class="azioni"><button class="btn ghost piccolo" type="button" onclick="modificaAliquote()">Cambia percentuali</button><button class="btn ghost piccolo" type="button" onclick="$('imp-file').click()">Importa giornate</button></div>
+    </section>`;
+}
+
+// il mese a griglia (lunedì per primo): ogni giornata col colore del suo stato, agenzia e totale; un giorno vuoto aggiunge una giornata
+function calendarioMese(mk, l, titolo = 'Calendario'){
+  const [a, m] = mk.split('-').map(Number), giorni = new Date(a, m, 0).getDate(), vuoti = (new Date(a, m - 1, 1).getDay() + 6) % 7, oggi = oggiISO();
+  const per = {}; l.forEach(g => (per[g.d] = per[g.d] || []).push(g));
+  let celle = '<span></span>'.repeat(vuoti);
+  for (let d = 1; d <= giorni; d++) {
+    const iso = mk + '-' + String(d).padStart(2, '0'), x = per[iso] || [], cl = iso === oggi ? ' oggi' : '';
+    if (!x.length) { celle += `<button type="button" class="cg${cl}" onclick="modifica(null, '${iso}')" aria-label="${d} ${MESI_L[m - 1]}: nessuna giornata, tocca per aggiungerla"><b>${d}</b></button>`; continue; }
+    const tit = x.map(g => `${g.agenzia || '–'}${g.nave ? ' · ' + g.nave : ''} · ${ETICH[statoDi(g)]}`).join('\n');
+    celle += `<button type="button" class="cg pieno ${statoDi(x[0])}${cl}" onclick="modifica('${x[0].id}')" title="${esc(tit)}" aria-label="${d} ${MESI_L[m - 1]}: ${esc(tit)}"><b>${d}</b>${logoAg(x[0].agenzia) && x.length === 1 ? logoAg(x[0].agenzia) : `<small>${esc((x[0].agenzia || '').slice(0, 6))}${x.length > 1 ? ' ×' + x.length : ''}</small>`}<i class="mono">${cifre(somma(x, totale), 0)}</i></button>`;
+  }
+  return `<section class="card glass">${titolo ? `<h2>${titolo}</h2>` : ''}
+    <div class="cal-int" aria-hidden="true">${['L', 'M', 'M', 'G', 'V', 'S', 'D'].map(g => `<span>${g}</span>`).join('')}</div>
+    <div class="cal-griglia">${celle}</div>
+    <div class="cal-leg"><span class="pagato">${ETICH.pagato}</span><span class="futura">${ETICH.futura}</span></div></section>`;
+}
+
+/* ---------------- Modifica ---------------- */
+function modifica(id, giorno){
+  const g = id ? L.giornate.find(x => x.id === id) : { d: giorno || oggiISO(), agenzia: '', nave: '', tipo: '', lordo: '', extra: '', stato: '', fattura: '', note: '' };
+  if (!g) return;
+  SUGG.agenzie = agenzie(); SUGG.tipi = [...new Set(L.giornate.map(x => x.tipo).filter(Boolean))]; aggiornaNavi(g.d);
+  apri(id ? 'Giornata' : 'Nuova giornata', `<div class="campi">
+    <label>Data<input id="m-d" type="date" value="${esc(g.d)}" onchange="aggiornaNavi(this.value)"></label>
+    <label>Agenzia<input id="m-a" data-sugg="agenzie" autocomplete="off" value="${esc(g.agenzia)}" autocapitalize="characters" placeholder="Es. CFFT"></label>
+    <label class="tutta">Nave<input id="m-n" data-sugg="navi" autocomplete="off" value="${esc(g.nave || (id ? proposta(g) : ''))}" placeholder="Es. Costa Toscana"></label>
+    ${id && !g.nave && proposta(g) ? `<p class="nota tutta" style="margin:-4px 0 0">Nave proposta dal programma del porto: controlla e salva per confermarla.</p>` : ''}
+    <label class="tutta">Servizio<input id="m-t" data-sugg="tipi" autocomplete="off" value="${esc(g.tipo)}" placeholder="Es. AM/PM GO, PS, Spiaggia"></label>
+    <label>Lordo €<input id="m-l" inputmode="decimal" value="${esc(g.lordo)}" oninput="ricalcola()"></label>
+    <label>Extra €<input id="m-e" inputmode="decimal" value="${esc(g.extra)}" oninput="ricalcola()"></label>
+    <label class="tutta">Note<textarea id="m-no">${esc(g.note || '')}</textarea></label></div>
+    <div class="conti" id="m-c"></div>
+    <div class="azioni">${id ? `<button class="btn rosso" type="button" onclick="elimina('${id}')">Elimina</button>` : ''}<button class="btn" type="button" onclick="salvaGiornata('${id || ''}')">Salva</button></div>`);
+  ricalcola();
+}
+// navi da suggerire: prima quelle in porto quel giorno, poi quelle già usate
+function aggiornaNavi(d){ SUGG.inPorto = naviDelGiorno(d).map(titolo); SUGG.navi = [...new Set([...SUGG.inPorto, ...L.giornate.map(x => x.nave).filter(Boolean)])]; }
+/* suggerimenti dei campi Agenzia, Nave e Servizio: filtrati mentre si scrive, si sceglie col dito, col mouse o con frecce e Invio */
+const SUGG = { navi: [], agenzie: [], tipi: [], inPorto: [] };
+function mostraSugg(inp){
+  const lab = inp.parentElement; let box = lab.querySelector('.sugg');
+  const q = inp.value.trim().toLowerCase(), lista = SUGG[inp.dataset.sugg] || [];
+  const voci = lista.filter(v => v.toLowerCase().includes(q) && v.toLowerCase() !== q)
+    .sort((a, b) => (b.toLowerCase().startsWith(q) - a.toLowerCase().startsWith(q))).slice(0, 8);
+  if (!voci.length) { if (box) box.remove(); return; }
+  if (!box) { box = document.createElement('div'); box.className = 'sugg'; box.setAttribute('role', 'listbox'); lab.appendChild(box); }
+  box.innerHTML = voci.map(v => `<button type="button" role="option" tabindex="-1" data-v="${esc(v)}">${esc(v)}${inp.dataset.sugg === 'navi' && SUGG.inPorto.includes(v) ? '<small>in porto</small>' : ''}</button>`).join('');
+}
+const chiudiSugg = () => document.querySelectorAll('.sugg').forEach(b => b.remove());
+document.addEventListener('focusin', e => { if (e.target.matches('input[data-sugg]')) { chiudiSugg(); mostraSugg(e.target); } });
+document.addEventListener('input', e => { if (e.target.matches('input[data-sugg]')) mostraSugg(e.target); });
+document.addEventListener('focusout', e => { if (e.target.matches('input[data-sugg]')) setTimeout(() => { if (!e.target.parentElement.contains(document.activeElement)) e.target.parentElement.querySelector('.sugg')?.remove(); }, 150); });
+// pointerdown: la scelta arriva prima che il campo perda il fuoco
+document.addEventListener('pointerdown', e => {
+  const b = e.target.closest('.sugg button'); if (!b) return;
+  e.preventDefault(); const inp = b.closest('label').querySelector('input');
+  inp.value = b.dataset.v; b.closest('.sugg').remove();
+});
+document.addEventListener('keydown', e => {
+  if (!e.target.matches('input[data-sugg]')) return;
+  const box = e.target.parentElement.querySelector('.sugg'); if (!box) return;
+  const b = [...box.querySelectorAll('button')], i = b.findIndex(x => x.classList.contains('on'));
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); b.forEach(x => x.classList.remove('on')); const n = b[(i + (e.key === 'ArrowDown' ? 1 : -1) + b.length) % b.length]; n.classList.add('on'); n.scrollIntoView({block: 'nearest'}); }
+  else if (e.key === 'Enter' && i >= 0) { e.preventDefault(); e.target.value = b[i].dataset.v; box.remove(); }
+  else if (e.key === 'Escape') box.remove();
+});
+function ricalcola(){ const g = { lordo: $('m-l').value, extra: $('m-e').value }; $('m-c').innerHTML = `<span>Netto<br><b class="mono">${eur(netto(g))}</b></span><span>Extra<br><b class="mono">${eur(num(g.extra) || 0)}</b></span><span>Totale<br><b class="mono">${eur(totale(g))}</b></span>`; }
+function salvaGiornata(id){
+  const d = $('m-d').value; if (!d) return toast('Scegli la data');
+  const g = { id: id || nuovoId(), d, agenzia: $('m-a').value.trim().toUpperCase(), nave: $('m-n').value.trim(), tipo: $('m-t').value.trim(),
+    lordo: num($('m-l').value) ?? '', extra: num($('m-e').value) ?? '', stato: '', fattura: '', note: $('m-no').value.trim() };
+  const vecchia = L.giornate.find(x => x.id === id);
+  if (vecchia) { g.dataFattura = vecchia.dataFattura; g.dataPagamento = vecchia.dataPagamento; }
+  if (g.stato && !g.dataFattura) g.dataFattura = oggiISO();
+  if (g.stato === 'pagato' && !g.dataPagamento) g.dataPagamento = oggiISO();
+  L.giornate = [...L.giornate.filter(x => x.id !== g.id), g];
+  salva(); chiudi(); disegna();
+  // data, nave o agenzia nuove: anche l'evento nel calendario (stato, fattura e importi non lo toccano)
+  if (!vecchia || ['d', 'nave', 'agenzia'].some(k => (vecchia[k] || '') !== (g[k] || ''))) avvisaCalendario('salva', vecchia ? {...vecchia} : null, {...g});
+}
+function elimina(id){
+  if (!confirm('Eliminare questa giornata?')) return;
+  const g = L.giornate.find(x => x.id === id);
+  L.giornate = L.giornate.filter(x => x.id !== id); salva(); chiudi(); disegna();
+  if (g) avvisaCalendario('elimina', {...g}, null);
+}
+// il calendario (Google) lo aggiorna la Dashboard, che ha l'accesso; qui arriva l'esito da mostrare
+function allineaCalendario(){
+  if (parent === window) return toast('Apri Lavoro dalla Dashboard per allineare il calendario');
+  toast('Controllo il calendario…');
+  parent.postMessage({ tipo: 'lavoro-allinea', giornate: L.giornate.map(g => ({ id: g.id, d: g.d, nave: g.nave || '', agenzia: g.agenzia || '' })) }, location.origin);
+}
+function avvisaCalendario(azione, prima, dopo){ try { if (parent !== window) parent.postMessage({ tipo: 'lavoro-cal', azione, prima, dopo }, location.origin); } catch (e) {} }
+addEventListener('message', e => { if (e.origin === location.origin && e.data && e.data.tipo === 'lavoro-cal-esito' && e.data.testo) toast(e.data.testo); });
+
+// fattura: le giornate da fatturare di un'agenzia, con il numero della fattura
+function fattura(ag){
+  const l = ordinate().filter(g => statoDi(g) === 'da' && (g.agenzia || '–') === ag);
+  apri('Fattura · ' + ag, `<div class="campi"><label>N. fattura<input id="f-n" placeholder="Es. 12/2026"></label><label>Data<input id="f-d" type="date" value="${oggiISO()}"></label></div>
+    <div class="scelte">${l.map(g => `<label><input type="checkbox" value="${g.id}" checked onchange="totFattura()"><span style="flex:1">${fmtD(g.d)} · ${esc(g.nave || 'nave da inserire')}${g.tipo ? ' · ' + esc(g.tipo) : ''}</span><b class="mono">${eur(totale(g))}</b></label>`).join('')}</div>
+    <div class="conti" id="f-c"></div>
+    <div class="azioni"><button class="btn" type="button" onclick="confermaFattura()">Segna fatturate</button></div>`);
+  totFattura();
+}
+function totFattura(){
+  const ids = [...document.querySelectorAll('.scelte input:checked')].map(i => i.value), l = L.giornate.filter(g => ids.includes(g.id));
+  $('f-c').innerHTML = `<span>${l.length} ${l.length === 1 ? 'giornata' : 'giornate'}</span><span>Lordo <b class="mono">${eur(somma(l, g => num(g.lordo)))}</b></span><span>Totale <b class="mono">${eur(somma(l, totale))}</b></span>`;
+}
+function confermaFattura(){
+  const ids = [...document.querySelectorAll('.scelte input:checked')].map(i => i.value); if (!ids.length) return toast('Scegli almeno una giornata');
+  const n = $('f-n').value.trim(), d = $('f-d').value || oggiISO();
+  L.giornate.forEach(g => { if (ids.includes(g.id)) Object.assign(g, { stato: 'fatturato', fattura: n, dataFattura: d }); });
+  salva(); chiudi(); toast(`${ids.length} ${ids.length === 1 ? 'giornata fatturata' : 'giornate fatturate'}${n ? ' · n. ' + n : ''}`); disegna();
+}
+function pagata(k){
+  const [a, n] = k.split('|'), l = L.giornate.filter(g => g.stato === 'fatturato' && (g.agenzia || '–') === a && (g.fattura || '') === n);
+  if (!confirm(`Segnare come pagata${n ? ' la fattura n. ' + n : ''} (${l.length} giornate, ${eur(somma(l, totale))})?`)) return;
+  l.forEach(g => Object.assign(g, { stato: 'pagato', dataPagamento: oggiISO() }));
+  salva(); toast('Segnata come pagata'); disegna();
+}
+function modificaAliquote(){
+  const a = L.aliquote, pc = v => String(Math.round(v * 10000) / 100).replace('.', ',');
+  apri('Percentuali', `<div class="campi"><label>Ritenuta %<input id="a-r" inputmode="decimal" value="${pc(a.ritenuta)}"></label><label>Imponibile %<input id="a-i" inputmode="decimal" value="${pc(a.imponibile)}"></label><label>Rivalsa %<input id="a-v" inputmode="decimal" value="${pc(a.rivalsa)}"></label></div>
+    <p class="nota">Netto = lordo − (lordo × imponibile × ritenuta) + (lordo × rivalsa).</p>
+    <div class="azioni"><button class="btn" type="button" onclick="salvaAliquote()">Salva</button></div>`);
+}
+function salvaAliquote(){
+  const r = num($('a-r').value), i = num($('a-i').value), v = num($('a-v').value);
+  if ([r, i, v].some(x => x == null || x < 0 || x > 100)) return toast('Percentuali non valide');
+  L.aliquote = { ritenuta: r / 100, imponibile: i / 100, rivalsa: v / 100 }; salva(); chiudi(); disegna();
+}
+
+// importazione delle giornate da file (preparato dal foglio Numbers): i dati restano solo nella cassaforte
+async function importa(file){
+  if (!file) return;
+  let d; try { d = JSON.parse(await file.text()); } catch(e){ return toast('File non leggibile'); }
+  if (!d || d.tipo !== 'lavoro-porto' || !Array.isArray(d.giornate)) return toast('Non è un file delle giornate di lavoro');
+  const t = v => String(v ?? '').trim().slice(0, 80);
+  const nuove = d.giornate.filter(g => /^\d{4}-\d{2}-\d{2}$/.test(g.d)).map(g => ({ id: nuovoId(), d: g.d, agenzia: t(g.agenzia).toUpperCase(), nave: t(g.nave), tipo: t(g.tipo),
+    lordo: num(g.lordo) ?? '', extra: num(g.extra) ?? '', stato: ['fatturato', 'pagato'].includes(g.stato) ? g.stato : '', fattura: t(g.fattura), note: t(g.note) }));
+  // stessa data e agenzia già presente: non si duplica
+  const chiave = g => g.d + '|' + g.agenzia, ci = new Set(L.giornate.map(chiave)), da = nuove.filter(g => !ci.has(chiave(g)));
+  if (!confirm(`Importo ${da.length} giornate${nuove.length - da.length ? ` (${nuove.length - da.length} già presenti, saltate)` : ''}. Continuare?`)) return;
+  L.giornate.push(...da); salva(); toast(`Importate ${da.length} giornate`); disegna();
+}
+
+/* finestra */
+function apri(t, html){ $('foglio').innerHTML = `<div class="foglio-h"><h3>${esc(t)}</h3><button class="tondo" type="button" onclick="chiudi()" aria-label="Chiudi">✕</button></div>${html}`; inTesta(); $('velo').classList.add('on'); }
+// il pulsante principale (Salva, Inizia…) anche nella testata, che resta in alto mentre si scorre
+function inTesta(){
+  const f = $('foglio'), b = [...f.querySelectorAll('.azioni .btn')].filter(x => !x.classList.contains('ghost') && !x.classList.contains('rosso')).pop();
+  if (!b) return;
+  const c = b.cloneNode(true); c.removeAttribute('style'); c.removeAttribute('id'); c.classList.add('in-testa');
+  f.querySelector('.foglio-h .tondo').before(c);
+}
+function chiudi(){ $('velo').classList.remove('on'); }
+document.addEventListener('keydown', e => { if (e.key === 'Escape') chiudi(); });
+
+/* ---------------- Avvio ---------------- */
+(async () => {
+  await Cassaforte.porta({ nome: 'il Lavoro', bilancio: '../bilancio/', torna: 'lavoro/' });
+  try { await carica(); }
+  catch(e) {
+    console.error(e);
+    $('vista').innerHTML = `<section class="card glass"><h2>Non riesco a leggere i dati</h2><p class="nota">${esc(e.code === 'permission-denied' ? 'Accesso negato dalle regole Firestore: pubblica le regole con la voce "dashboard".' : (e.code || e.message))}</p></section>`;
+    return;
+  }
+    disegna(); leggiPorto();
+})();
+</script>
+</body>
+</html>
