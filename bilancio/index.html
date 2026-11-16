@@ -1120,6 +1120,7 @@ function contiAl(data){
     if(t.pag && t.conto) add(t.conto, t.t==='u' ? t.amt : -t.amt);   // debito, conto, contanti
     else if(t.rid && t.conto && !t.carta) add(t.conto, t.amt);        // rata pagata dal conto
   });
+  trasferimenti().forEach(x=>{ if(x.saldi!==false && x.d>data){ add(x.from,x.amt); add(x.to,-x.amt); } });
   carte().forEach(c=>(c.es||[]).forEach(e=>{ if(e.d>data && e.conto) add(e.conto, e.tot); })); // estratti conto
   return S.conti.map(c=>({n:c.n, g:c.g, v:v.get(c.id)}));
 }
@@ -1686,12 +1687,65 @@ function renderPat(){
   GRP.forEach(([g,col])=>{
     const items = S.conti.filter(c=>c.g===g);
     html += `<div class="pg-${g.toLowerCase()}"><div class="gh"><b><i class="dot" style="background:${col}"></i>${nomeGruppo(g)}</b><span class="mono">${eur(tot(g),0)}</span></div><div class="card" style="padding:4px 14px">
-      ${items.map(c=>`<div class="acct" onclick="openConto('${c.id}')"><span class="acct-n">${contoIcon(c)}<span>${esc(c.n)}<small>${g==='Fatture' ? fattInfo(c) : pct(c.v)+' del patrimonio'}${c.cripto&&c.cripto.length ? ' · '+c.cripto.map(r=>fmtQ(r.q)+' '+esc(r.sim)).join(', ')+' · in tempo reale' : ''}</small></span></span><b class="mono ${c.v?'':'mut'}">${eur(c.v,0)}</b></div>`).join('') || '<div class="empty" style="padding:12px 0;font-size:12.5px">Nessun conto</div>'}</div></div>`;
+      ${items.map(c=>`<div class="acct" onclick="openConto('${c.id}')"><span class="acct-n">${contoIcon(c)}<span>${esc(c.n)}<small>${g==='Fatture' ? fattInfo(c) : pct(c.v)+' del patrimonio'}${c.cripto&&c.cripto.length ? ' · '+c.cripto.map(r=>fmtQ(r.q)+' '+esc(r.sim)).join(', ')+' · in tempo reale' : ''}</small></span></span><b class="mono ${c.v?'':'mut'}">${eur(c.v)}</b></div>`).join('') || '<div class="empty" style="padding:12px 0;font-size:12.5px">Nessun conto</div>'}</div></div>`;
   });
   html += `</div><div class="pat-add-r"><button class="btn ghost pat-add" onclick="openConto()">+ Aggiungi conto</button><button class="btn ghost pat-add" onclick="openConto('', 'Fatture')">+ Fattura in sospeso</button></div>`;
+  html += trasferimentiHTML();
   html += storicoHTML();
   $('v-pat').innerHTML = html;
   drawPatrChart();
+}
+/* ---- Trasferimenti tra conti: registro separato da entrate e spese ---- */
+const trasferimenti = () => (S.opz||{}).trasferimenti || [];
+const nomeConto = id => (S.conti.find(c=>c.id===id)||{}).n || 'Conto non più presente';
+function trasferimentiHTML(){
+  const all = trasferimenti(), anni = [...new Set(all.map(x=>x.d.slice(0,4)).concat(String(new Date().getFullYear())))].sort().reverse();
+  const anno = ui.trasferimentiAnno || 'all';
+  const list = all.filter(x=>anno==='all'||x.d.slice(0,4)===anno).slice().sort((a,b)=>b.d.localeCompare(a.d)||a.id.localeCompare(b.id));
+  const coppie = new Map();
+  list.forEach(x=>{ const k=x.from+'|'+x.to, p=coppie.get(k)||{from:x.from,to:x.to,amt:0,n:0}; p.amt=round2(p.amt+x.amt);p.n++;coppie.set(k,p); });
+  return `<section aria-label="Trasferimenti tra conti"><div class="gh"><b>Trasferimenti tra conti</b><button class="btn sm ghost" onclick="openTrasferimento()">+ Trasferimento</button></div>
+    <div class="card"><div class="row" style="gap:12px;flex-wrap:wrap"><div><b class="mono">${eur(sum(list.map(x=>x.amt)))}</b><small style="display:block">${list.length} trasferimenti</small></div>
+      <label>Periodo <select aria-label="Anno dei trasferimenti" onchange="ui.trasferimentiAnno=this.value;render()"><option value="all">Tutto</option>${anni.map(y=>`<option value="${y}" ${anno===y?'selected':''}>${y}</option>`).join('')}</select></label></div>
+    <p class="note" style="margin:12px 0">Spostamenti tra i tuoi conti: non sono entrate o spese e non cambiano il patrimonio totale.</p>
+    ${[...coppie.values()].map(p=>`<div class="row" style="gap:12px;margin:10px 0"><span>${esc(nomeConto(p.from))} → ${esc(nomeConto(p.to))}<small style="display:block">${p.n} operazioni</small></span><b class="mono">${eur(p.amt)}</b></div>`).join('')}
+    ${list.length ? `<details><summary style="cursor:pointer;padding:10px 0">Mostra i trasferimenti</summary>${list.map(x=>`<div class="row" style="gap:10px;padding:12px 0;border-top:1px solid var(--line)"><div style="min-width:0;flex:1"><b>${fmtD(x.d)}</b><small style="display:block;overflow-wrap:anywhere">${esc(nomeConto(x.from))} → ${esc(nomeConto(x.to))}</small>${x.note?`<small style="display:block;overflow-wrap:anywhere">${esc(x.note)}</small>`:''}</div><b class="mono" style="white-space:nowrap">${eur(x.amt)}</b><button class="btn sm ghost" onclick="openTrasferimento('${x.id}')" aria-label="Modifica trasferimento del ${fmtD(x.d)}">Modifica</button></div>`).join('')}</details>` : '<div class="empty">Nessun trasferimento registrato.</div>'}</div></section>`;
+}
+function openTrasferimento(id){
+  const x = id ? trasferimenti().find(t=>t.id===id) : {d:today(),from:'',to:'',amt:'',note:'',saldi:true};
+  if(!x) return;
+  const conti=S.conti.filter(liquido), opts=sel=>`<option value="">Scegli conto</option>${conti.map(c=>`<option value="${c.id}" ${c.id===sel?'selected':''}>${esc(c.n)}</option>`).join('')}`;
+  sheet(`<h3>${id?'Modifica trasferimento':'Trasferimento tra conti'}</h3><p class="note">Registra uno spostamento già effettuato. Non esegue bonifici e non crea una spesa.</p>
+    <div class="grid2"><div class="f"><label for="tr-from">Dal conto</label><select id="tr-from">${opts(x.from)}</select></div><div class="f"><label for="tr-to">Al conto</label><select id="tr-to">${opts(x.to)}</select></div></div>
+    <div class="grid2"><div class="f"><label for="tr-date">Data</label><input type="date" id="tr-date" value="${x.d}" max="${today()}"></div><div class="f"><label for="tr-amt">Importo (€)</label><input id="tr-amt" inputmode="decimal" value="${x.amt===''?'':String(x.amt).replace('.',',')}"></div></div>
+    <div class="f"><label for="tr-note">Nota</label><input id="tr-note" value="${esc(x.note||'')}"></div>
+    <label class="chk" style="justify-content:flex-start;margin:12px 0"><input type="checkbox" id="tr-incluso" ${x.saldi===false?'checked':''}>Il trasferimento è già incluso nei saldi</label>
+    <p class="note">Se selezionato, i saldi attuali restano invariati. Altrimenti l’importo viene sottratto dal conto di partenza e aggiunto a quello di arrivo.</p>
+    <button class="btn" onclick="saveTrasferimento('${id||''}')">Salva trasferimento</button><button class="btn ghost" style="margin-top:8px" onclick="closeSheet()">Annulla</button>`);
+}
+function effettoTrasferimento(x, sign=1){
+  if(!x || x.saldi===false) return;
+  const da=S.conti.find(c=>c.id===x.from),a=S.conti.find(c=>c.id===x.to);
+  if(da) da.v=round2(da.v-sign*x.amt);
+  if(a) a.v=round2(a.v+sign*x.amt);
+}
+function importoTrasferimento(v){
+  let s=String(v).trim().replace(/\s/g,'');
+  if(s.includes(',')) s=s.replace(/\./g,'').replace(',','.');
+  return /^\d+(\.\d{1,2})?$/.test(s)?Number(s):NaN;
+}
+function saveTrasferimento(id){
+  const old=id && trasferimenti().find(x=>x.id===id);
+  if(id&&!old) return toast('Trasferimento non trovato');
+  const x={id:id||uid(),d:$('tr-date').value,from:$('tr-from').value,to:$('tr-to').value,amt:round2(importoTrasferimento($('tr-amt').value)),note:$('tr-note').value.trim(),saldi:!$('tr-incluso').checked};
+  const valid=id=>S.conti.some(c=>c.id===id && liquido(c));
+  if(!valid(x.from)||!valid(x.to)||x.from===x.to) return toast('Scegli due conti diversi');
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(x.d)||x.d>today()) return toast('Scegli una data non futura');
+  if(!Number.isFinite(x.amt)||x.amt<=0) return toast('Inserisci un importo positivo');
+  if(!S.opz) S.opz={}; if(!S.opz.trasferimenti) S.opz.trasferimenti=[];
+  effettoTrasferimento(old,-1);
+  if(old) Object.assign(old,x); else S.opz.trasferimenti.push(x);
+  effettoTrasferimento(x); save();closeSheet();render();toast('Trasferimento registrato');
 }
 /* ---- Andamento del patrimonio ---- */
 const fmtM = m => `${M3[+m.slice(5)-1]} ${m.slice(0,4)}`;
@@ -1779,7 +1833,7 @@ function openFoto(m){
   const f = m && S.storico.find(x=>x.m===m);
   const val = k => f ? String(f.g[k]||0).replace('.',',') : '';
   sheet(`<h3>${f ? `Patrimonio · ${MESI[+f.m.slice(5)-1]} ${f.m.slice(0,4)}` : 'Aggiungi un mese passato'}</h3>
-    ${f && f.conti && f.conti.length && f.tipo!=='inserito' ? `<div class="card" style="padding:4px 14px;margin-bottom:12px">${f.conti.map(c=>`<div class="acct" style="cursor:default"><span class="acct-n">${contoIcon(c)}<span>${esc(c.n)}<small>${nomeGruppo(c.g)}</small></span></span><b class="mono">${eur(c.v,0)}</b></div>`).join('')}</div>
+    ${f && f.conti && f.conti.length && f.tipo!=='inserito' ? `<div class="card" style="padding:4px 14px;margin-bottom:12px">${f.conti.map(c=>`<div class="acct" style="cursor:default"><span class="acct-n">${contoIcon(c)}<span>${esc(c.n)}<small>${nomeGruppo(c.g)}</small></span></span><b class="mono">${eur(c.v)}</b></div>`).join('')}</div>
       <p class="note" style="margin:-4px 0 12px">Salvato il ${fmtD(f.d)}. Puoi correggere i totali qui sotto: il mese diventa "inserito a mano" e non verrà più aggiornato in automatico.</p>` : ''}
     ${f ? '' : `<div class="f"><label>Mese</label><input type="month" id="sf-m" value="${addYM(thisMonth(),-1)}" max="${thisMonth()}"></div>`}
     <div class="grid2">${GRUPPI.map((k,i)=>`<div class="f"><label>${nomeGruppo(k)} (€)</label><input id="sf-${i}" inputmode="decimal" value="${val(k)}" placeholder="0 €"></div>`).join('')}</div>
@@ -3625,6 +3679,7 @@ function openSettings(){
     <p class="note" style="margin-top:-4px">Il backup .json non è cifrato: tienilo in un posto sicuro e mai nel repo.</p>
     <button class="btn ghost" onclick="exportJSON()">Esporta backup (.json)</button>
     <label class="btn ghost" style="display:block;text-align:center;margin-top:8px;cursor:pointer">Importa backup (.json)<input type="file" accept=".json" hidden onchange="importJSON(this.files[0])"></label>
+    <button class="btn ghost" style="margin-top:8px" onclick="openBackupPaste()">Incolla backup JSON</button>
     <button class="btn danger" style="margin-top:8px" onclick="if(confirm(CLOUD?'Cancellare TUTTI i dati, anche dal cloud?':'Cancellare TUTTI i dati di questa app?')){cloud.svuota=true;S=buildSeed();afterLoad();save();closeSheet();render();toast('Dati cancellati')}">Cancella tutti i dati</button>
     <button class="btn ghost" style="margin-top:8px" onclick="closeSheet()">Chiudi</button>`);
 }
@@ -3696,7 +3751,22 @@ function importCSV(f){
   r.readAsText(f);
 }
 function exportJSON(){ const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([JSON.stringify(S,null,1)],{type:'application/json'})); a.download='bilancio-backup.json'; a.click(); }
-function importJSON(f){ if(!f) return; const r=new FileReader(); r.onload=()=>{ try{ const d=JSON.parse(r.result); if(!d.tx) throw 0; S={...buildSeed(), ...d}; afterLoad(); save(); closeSheet(); render(); toast('Backup importato'); }catch(e){ toast('File non valido'); } }; r.readAsText(f); }
+function applicaBackup(d){
+  if(!d || !Array.isArray(d.tx) || (d.conti!==undefined && !Array.isArray(d.conti))) throw Error('Backup non valido');
+  S={...buildSeed(),...d}; afterLoad();save();closeSheet();render();toast('Backup importato');
+}
+function importJSON(f){ if(!f) return; const r=new FileReader(); r.onload=()=>{ try{ applicaBackup(JSON.parse(r.result)); }catch(e){toast('File non valido');} }; r.readAsText(f); }
+function openBackupPaste(){
+  sheet(`<h3>Incolla backup</h3><p class="note">Ripristina un backup completo esportato dall’app. Sostituisce i dati attuali: conserva prima una copia con Esporta backup. Il contenuto viene cifrato prima del salvataggio nel tuo account.</p>
+    <div class="f"><label for="backup-testo">Contenuto del backup JSON</label><textarea id="backup-testo" rows="9" spellcheck="false" autocomplete="off" style="width:100%;font-family:monospace" placeholder="Incolla qui il contenuto del backup completo"></textarea></div>
+    <button class="btn" onclick="importaBackupTesto()">Importa il backup incollato</button><button class="btn ghost" style="margin-top:8px" onclick="closeSheet()">Annulla</button>`);
+}
+function importaBackupTesto(){
+  let d;try{d=JSON.parse($('backup-testo').value);}catch(e){return toast('Il testo non è un backup JSON valido');}
+  if(!d||!Array.isArray(d.tx)||(d.conti!==undefined&&!Array.isArray(d.conti)))return toast('Backup non valido');
+  if(!confirm(`Ripristinare il backup con ${d.tx.length} movimenti e ${(d.conti||[]).length} conti? I dati attuali verranno sostituiti.`))return;
+  try{applicaBackup(d);}catch(e){toast('Backup non valido');}
+}
 
 /* ============ SHEET ============ */
 function sheet(h){ $('sheet').innerHTML = `<button class="sheet-x" onclick="closeSheet()" aria-label="Chiudi">✕</button>` + h; $('ov').classList.add('on'); }
