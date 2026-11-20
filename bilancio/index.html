@@ -552,6 +552,7 @@ html.incorporata .card,html.incorporata .seg,html.incorporata .mx-wrap,html.inco
   <section class="view" id="v-mx"></section>
   <section class="view" id="v-pat"></section>
   <section class="view" id="v-altro"></section>
+  <section class="view" id="v-carburante"></section>
 </main>
 
 <button class="fab" id="fab" onclick="nuovoDaFab()" aria-label="Nuovo movimento">+</button>
@@ -565,6 +566,7 @@ html.incorporata .card,html.incorporata .seg,html.incorporata .mx-wrap,html.inco
   <button data-t="carte"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="5" width="19" height="14" rx="2.5"/><path d="M2.5 9.5h19"/><circle cx="16.5" cy="15" r="1.2"/><circle cx="18.8" cy="15" r="1.2"/></svg>Carte</button>
   <button data-t="abbo" class="wide-only"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 0 1 13.7-5.6L20 9"/><path d="M20 4v5h-5"/><path d="M20 12a8 8 0 0 1-13.7 5.6L4 15"/><path d="M4 20v-5h5"/></svg>Abbonamenti</button>
   <button data-t="inv" class="wide-only"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>Investimenti</button>
+  <button data-t="carburante" class="wide-only"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 21h11M5 21V4h8v17M5 11h8m0 3h2a2 2 0 0 1 2 2v2a2 2 0 0 0 4 0v-8l-3-4"/></svg>Carburante</button>
   <button data-t="altro"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/></svg>Altro</button>
 </nav>
 
@@ -620,7 +622,7 @@ const kdb = {
    Salvataggio ottimistico: lo stato in memoria cambia subito, l'invio parte dopo 400 ms
    e solo per le sezioni modificate, con nuovi tentativi se la rete manca. */
 const KEY = 'bilancio:v1';
-const SEZ = ['tx','conti','rate','inv','trading','carte','servizi','opz','storico','abbo'];
+const SEZ = ['tx','conti','rate','inv','trading','carte','servizi','opz','storico','abbo','carburante'];
 const localStore = {
   get(){ try{ const r = localStorage.getItem(KEY); return r ? JSON.parse(r) : null; }catch(e){ return null; } },
   clear(){ try{ localStorage.removeItem(KEY); }catch(e){} }
@@ -806,7 +808,7 @@ let S = buildSeed();
 const now = new Date();
 const ui = { tab:'home', year: now.getFullYear(), month: now.getMonth(), tipo:'all', q:'', mxTipo:'u', altro:'rate', rateTab:'due', carta:'', plMonth: now.getMonth() };
 
-function buildSeed(){ return { tx:[], conti:[], rate:[], inv:[], trading:[] }; }
+function buildSeed(){ return { tx:[], conti:[], rate:[], inv:[], trading:[], carburante:[] }; }
 function save(){ if(CLOUD && cloud.key) store.set(S); }
 
 /* ============ UTILS ============ */
@@ -1239,13 +1241,13 @@ function showTab(t){
     if(t==='mx' || t==='altro') ui.altroTel = t==='mx' ? 'mx' : ui.altro;
   } else if(t==='altro') ui.altro = 'trading';
   ui.tab=t;
-  const navT = !wide && t==='mx' ? 'altro' : t;
+  const navT = !wide && t==='mx' ? 'altro' : !wide && t==='carburante' ? 'carte' : t;
   document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('on',b.dataset.t===navT));
   document.querySelectorAll('.view').forEach(v=>v.classList.toggle('on',v.id==='v-'+(SUB.includes(t)?'altro':t)));
   $('fab').classList.toggle('on', t==='home'||t==='mov'||t==='mx');
   $('chips').style.display = (t==='home'||t==='mov') ? 'flex' : 'none';
-  $('mast-title').textContent = {home:'Bilancio',mov:'Movimenti',mx:'Mensile',pat:'Patrimonio',rate:'Rate',carte:'Carte di credito',abbo:'Abbonamenti',inv:'Investimenti',altro:'Altro'}[t];
-  $('period-bar').style.display = (t==='pat' || SUB.includes(t)) ? 'none' : 'block';
+  $('mast-title').textContent = {home:'Bilancio',mov:'Movimenti',mx:'Mensile',pat:'Patrimonio',rate:'Rate',carte:'Carte di credito',abbo:'Abbonamenti',inv:'Investimenti',carburante:'Carta carburante',altro:'Altro'}[t];
+  $('period-bar').style.display = (t==='pat' || t==='carburante' || SUB.includes(t)) ? 'none' : 'block';
   render(); window.scrollTo(0,0);
   Moto.entra(document.querySelector('.view.on'));
   Moto.largo(t === 'mx', t === 'mx' ? larghezzaMensile() : 0); // il Mensile ha tante colonne: sugli schermi larghi la scheda si allarga quanto serve
@@ -1272,7 +1274,7 @@ function renderChips(){
 /* ============ RENDER ============ */
 function render(){
   renderChips();
-  ({home:renderHome, mov:renderMov, mx:renderMx, pat:renderPat, altro:renderAltro, rate:renderAltro, carte:renderAltro, abbo:renderAltro, inv:renderAltro})[ui.tab]();
+  ({home:renderHome, mov:renderMov, mx:renderMx, pat:renderPat, altro:renderAltro, rate:renderAltro, carte:renderAltro, abbo:renderAltro, inv:renderAltro, carburante:renderCarburante})[ui.tab]();
 }
 
 /* ---- Panoramica ---- */
@@ -2010,7 +2012,7 @@ function renderAltro(){
   } else if(ui.altro==='abbo'){
     body = renderAbbo();
   } else if(ui.altro==='carte'){
-    body = renderCarte();
+    body = `<button class="btn ghost" style="margin-bottom:12px" onclick="showTab('carburante')">Carta carburante aziendale</button>` + renderCarte();
   } else if(ui.altro==='inv'){
     body = renderInv();
   } else {
@@ -3647,6 +3649,131 @@ function estRegistra(){
   });
   save(); closeSheet(); render(); toast(`${n} moviment${n === 1 ? 'o registrato' : 'i registrati'} dall'estratto conto`);
   EST = null;
+}
+
+/* ============ CARTA CARBURANTE AZIENDALE ============ */
+const meseCarburante = () => ui.meseCarburante || today().slice(0,7);
+const nomeMeseCarburante = m => `${MESI[Number(m.slice(5))-1]} ${m.slice(0,4)}`;
+function meseCarburanteVai(delta){
+  ui.meseCarburante = addMonths(meseCarburante() + '-01', delta).slice(0,7);
+  renderCarburante();
+}
+function riepilogoCarburante(records, mese){
+  const movimenti = records.filter(r => r.tipo === 'rifornimento' && r.d.slice(0,7) === mese).sort((a,b) => b.d.localeCompare(a.d));
+  const budget = records.filter(r => r.tipo === 'limite' && r.mese <= mese).sort((a,b) => b.mese.localeCompare(a.mese))[0];
+  const speso = round2(sum(movimenti.map(r => r.amt)));
+  return {movimenti, budget, speso, residuo:budget ? round2(budget.amt - speso) : null};
+}
+function renderCarburante(){
+  const mese = meseCarburante();
+  const {movimenti, budget, speso, residuo} = riepilogoCarburante(S.carburante, mese);
+  $('v-carburante').innerHTML = `
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px">
+      <button class="chip" onclick="meseCarburanteVai(-1)" aria-label="Mese precedente">‹</button>
+      <strong aria-live="polite">${nomeMeseCarburante(mese)}</strong>
+      <button class="chip" onclick="meseCarburanteVai(1)" aria-label="Mese successivo">›</button>
+    </div>
+    <div class="grid2">
+      <div class="card kpi"><small>Speso nel mese</small><b class="mono">${eur(speso)}</b></div>
+      <div class="card kpi"><small>${residuo < 0 ? 'Oltre il limite' : 'Margine residuo'}</small><b class="mono ${residuo < 0 ? 'neg' : ''}">${residuo == null ? '—' : eur(Math.abs(residuo))}</b></div>
+    </div>
+    <div class="card" style="margin-top:10px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between">
+      <span>Limite mensile <strong>${budget ? eur(budget.amt) : 'da impostare'}</strong></span>
+      <button class="chip" onclick="apriLimiteCarburante()">${budget ? 'Modifica limite' : 'Imposta limite'}</button>
+    </div>
+    <p class="note">I rifornimenti della carta aziendale sono separati dalle spese personali.</p>
+    <div class="grid2"><button class="btn" onclick="apriRifornimento()">Aggiungi rifornimento</button>
+      <button class="btn ghost" onclick="apriImportCarburante()">Carica spese</button></div>
+    <h2 class="sec">Rifornimenti del mese</h2>
+    ${movimenti.length ? movimenti.map(r => `
+      <button type="button" class="tx" style="width:100%;text-align:left;color:var(--ink)" data-id="${esc(r.id)}" onclick="apriRifornimento(this.dataset.id)">
+        <span class="mid" style="flex:1"><b>${esc(r.desc || 'Rifornimento')}</b><small>${fmtD(r.d)}</small></span>
+        <strong class="mono">${eur(r.amt)}</strong></button>`).join('') : '<div class="card empty">Nessun rifornimento registrato</div>'}`;
+}
+function apriLimiteCarburante(){
+  const mese = meseCarburante(), {budget} = riepilogoCarburante(S.carburante, mese);
+  sheet(`<h3>Limite mensile</h3><p class="note">Vale da ${nomeMeseCarburante(mese).toLowerCase()} finché non imposti un nuovo limite.</p>
+    <div class="f"><label for="carb-limite">Limite in euro</label><input id="carb-limite" inputmode="decimal" value="${budget ? budget.amt : ''}"></div>
+    <button class="btn" onclick="salvaLimiteCarburante()">Salva limite</button>`);
+}
+function salvaLimiteCarburante(){
+  const amt = estNum($('carb-limite').value);
+  if(amt == null || amt < 0) return toast('Inserisci un limite valido');
+  const mese = meseCarburante(), id = 'limite-' + mese;
+  S.carburante = [...S.carburante.filter(r => r.id !== id), {id, tipo:'limite', mese, amt:round2(amt)}];
+  save(); closeSheet(); renderCarburante();
+}
+function apriRifornimento(id){
+  const r = S.carburante.find(item => item.id === id && item.tipo === 'rifornimento');
+  const mese = meseCarburante(), data = r?.d || (today().startsWith(mese) ? today() : mese + '-01');
+  sheet(`<h3>${r ? 'Modifica rifornimento' : 'Aggiungi rifornimento'}</h3>
+    <div class="grid2"><div class="f"><label for="carb-data">Data</label><input type="date" id="carb-data" value="${esc(data)}"></div>
+    <div class="f"><label for="carb-importo">Importo in euro</label><input id="carb-importo" inputmode="decimal" value="${r?.amt ?? ''}"></div></div>
+    <div class="f"><label for="carb-stazione">Distributore o nota</label><input id="carb-stazione" value="${esc(r?.desc)}"></div>
+    <button class="btn" data-id="${esc(r?.id)}" onclick="salvaRifornimento(this.dataset.id)">Salva rifornimento</button>
+    ${r ? `<button class="btn danger" style="margin-top:8px" data-id="${esc(r.id)}" onclick="eliminaRifornimento(this.dataset.id)">Elimina rifornimento</button>` : ''}`);
+}
+function salvaRifornimento(id){
+  const d = estData($('carb-data').value), amt = round2(estNum($('carb-importo').value) || 0);
+  if(!d || amt <= 0) return toast('Inserisci una data e un importo valido');
+  const r = {id:id || uid(), tipo:'rifornimento', d, amt, desc:$('carb-stazione').value.trim()};
+  S.carburante = [...S.carburante.filter(item => item.id !== r.id), r];
+  ui.meseCarburante = d.slice(0,7);
+  save(); closeSheet(); renderCarburante();
+}
+function eliminaRifornimento(id){
+  if(!confirm('Eliminare questo rifornimento?')) return;
+  S.carburante = S.carburante.filter(r => r.id !== id);
+  save(); closeSheet(); renderCarburante();
+}
+function apriImportCarburante(){
+  ui.importCarburante = [];
+  sheet(`<h3>Carica spese carburante</h3><p class="note">Scegli un estratto CSV, Excel o PDF. Nell’anteprima seleziona solo gli addebiti per rifornimenti.</p>
+    <div class="f"><label for="carb-file">File dell’estratto</label><input id="carb-file" type="file" accept=".csv,.xlsx,.xls,.ods,.pdf" onchange="leggiImportCarburante(this)"></div>
+    <div id="carb-anteprima" aria-live="polite"></div>`);
+}
+const rifornimentoChiave = r => `${r.d}|${Math.round(r.amt*100)}|${estNorm(r.desc || 'Movimento')}`;
+function preparaImportCarburante(records, movimenti){
+  const esistenti = new Map(), occorrenze = new Map();
+  for(const r of records.filter(x => x.tipo === 'rifornimento')){
+    const chiave = rifornimentoChiave(r);
+    esistenti.set(chiave, (esistenti.get(chiave) || 0) + 1);
+  }
+  return movimenti.map(m => {
+    const r = {tipo:'rifornimento', d:m.d, amt:round2(Math.abs(m.amt)), desc:m.desc};
+    const chiave = rifornimentoChiave(r), numero = (occorrenze.get(chiave) || 0) + 1;
+    occorrenze.set(chiave, numero);
+    return {r, duplicato:numero <= (esistenti.get(chiave) || 0)};
+  });
+}
+async function leggiImportCarburante(input){
+  const file = input.files[0], preview = $('carb-anteprima');
+  if(!file) return;
+  ui.importCarburante = [];
+  preview.textContent = 'Lettura del file…';
+  try{
+    const movimenti = await estLeggiFile(file);
+    if(!input.isConnected || input.files[0] !== file) return;
+    if(!movimenti.length){ preview.textContent = 'Nessuna riga leggibile. Prova con il CSV della carta o inserisci a mano.'; return; }
+    ui.importCarburante = movimenti;
+    preview.innerHTML = `<p class="note">Verifica la descrizione e il segno originale prima di selezionare le righe.</p>
+      <div style="max-height:45vh;overflow:auto">${preparaImportCarburante(S.carburante, movimenti).map(({r, duplicato},i) => `
+        <label class="tx"><input type="checkbox" data-riga="${i}" style="width:auto" ${duplicato ? 'disabled' : ''}>
+          <span class="mid" style="flex:1"><b>${esc(r.desc)}</b><small>${fmtD(r.d)}${duplicato ? ' · Già registrato' : ''}</small></span>
+          <strong class="mono">${eur(movimenti[i].amt)}</strong></label>`).join('')}</div>
+      <button class="btn" style="margin-top:10px" onclick="salvaImportCarburante()">Importa selezione</button>`;
+  } catch(e){ if(input.isConnected && input.files[0] === file) preview.textContent = 'Impossibile leggere il file. Prova con il CSV o inserisci a mano.'; }
+}
+function salvaImportCarburante(){
+  const selezionate = [...$('carb-anteprima').querySelectorAll('input:checked')].map(el => Number(el.dataset.riga));
+  const righe = preparaImportCarburante(S.carburante, ui.importCarburante);
+  const nuove = selezionate.map(i => righe[i]).filter(item => item && !item.duplicato).map(({r}) => ({...r, id:uid()}));
+  if(!nuove.length) return toast('Seleziona almeno un rifornimento nuovo');
+  S.carburante = [...S.carburante, ...nuove];
+  ui.meseCarburante = nuove.map(r => r.d).sort().at(-1).slice(0,7);
+  ui.importCarburante = [];
+  save(); closeSheet(); renderCarburante();
+  toast(nuove.length === 1 ? 'Rifornimento importato' : `${nuove.length} rifornimenti importati`);
 }
 
 /* ============ IMPOSTAZIONI ============ */
