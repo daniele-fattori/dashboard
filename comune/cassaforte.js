@@ -418,7 +418,7 @@
       stilePorta();
       const box = document.createElement('div');
       box.className = 'cf-porta';
-      box.innerHTML = `<div class="cf-box" role="dialog" aria-modal="true" aria-labelledby="cf-ftit"><div class="cf-logo" aria-hidden="true">G</div><h1 id="cf-ftit"></h1><p class="cf-sub"></p><div class="cf-corpo"></div><p class="cf-err" role="alert"></p></div>`;
+      box.innerHTML = `<div class="cf-box" role="dialog" aria-modal="true" aria-labelledby="cf-ftit"><div class="cf-logo" aria-hidden="true">D</div><h1 id="cf-ftit"></h1><p class="cf-sub"></p><div class="cf-corpo"></div><p class="cf-err" role="alert"></p></div>`;
       box.querySelector('h1').textContent = titolo; box.querySelector('.cf-sub').textContent = sotto || '';
       document.body.appendChild(box);
       return { box, corpo: box.querySelector('.cf-corpo'), err: m => { box.querySelector('.cf-err').textContent = m || ''; }, chiudi: () => box.remove() };
@@ -452,7 +452,7 @@
       stilePorta();
       const box = document.createElement('div');
       box.className = 'cf-porta';
-      box.innerHTML = `<div class="cf-box" role="dialog" aria-modal="true" aria-labelledby="cf-tit"><div class="cf-logo" aria-hidden="true">G</div><h1 id="cf-tit"></h1><p class="cf-sub"></p><div class="cf-corpo"></div><p class="cf-err" role="alert"></p></div>`;
+      box.innerHTML = `<div class="cf-box" role="dialog" aria-modal="true" aria-labelledby="cf-tit"><div class="cf-logo" aria-hidden="true">D</div><h1 id="cf-tit"></h1><p class="cf-sub"></p><div class="cf-corpo"></div><p class="cf-err" role="alert"></p></div>`;
       document.body.appendChild(box);
       const $ = s => box.querySelector(s), err = m => { $('.cf-err').textContent = m || ''; };
       return new Promise(fine => {
