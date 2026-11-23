@@ -12,6 +12,16 @@
   let t = 'notte'; try{ t = localStorage.getItem('bilancio:tema2') || 'notte'; }catch(e){}
   document.documentElement.dataset.theme = t;
   document.querySelector('meta[name=theme-color]').content = {scuro:'#1e2629', carta:'#f6f4ef', vetro:'#e6dccf'}[t] || '#1a1411';
+  const chiaveCifreNascoste = 'dg:cifreNascoste';
+  function aggiornaCifreNascoste(){
+    let nascoste = false;
+    try { nascoste = localStorage.getItem(chiaveCifreNascoste) === 'true'; } catch(e){}
+    document.documentElement.toggleAttribute('data-cifre-nascoste', nascoste);
+  }
+  aggiornaCifreNascoste();
+  window.addEventListener('storage', e => {
+    if(e.storageArea === localStorage && (e.key === chiaveCifreNascoste || e.key === null)) aggiornaCifreNascoste();
+  });
 </script>
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Bilancio">
@@ -110,7 +120,8 @@ h2.sec{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--
 .donut .c{position:absolute;inset:0;display:grid;place-items:center;text-align:center;font-size:10px;color:var(--ink3);font-weight:600}
 .donut .c b{display:block;font-size:14px;color:var(--ink)}
 .legend{flex:1;display:flex;flex-direction:column;gap:6px;font-size:12px;min-width:0}
-.legend div{display:flex;align-items:center;gap:7px}
+.legend button{display:flex;align-items:center;gap:7px;width:100%;padding:3px 4px;border:0;border-radius:6px;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.legend button:hover,.legend button:focus-visible{background:var(--panel2)}
 .legend i{width:9px;height:9px;border-radius:3px;flex:none}
 .legend span{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
@@ -264,6 +275,10 @@ table.mx{border-collapse:separate;border-spacing:0;font-size:12px;min-width:max-
 .k-ring>div{display:flex;flex-direction:column;gap:6px;font-size:11.5px;color:var(--ink2)}
 .k-ring i{display:inline-block;width:8px;height:8px;border-radius:3px;margin-right:6px}
 .kpi .k-ring b{font-size:13px;display:inline;color:var(--ink)}
+.kpi .k-cifre-nascoste{display:none}
+[data-cifre-nascoste] .kpi .k-cifre-nascoste{display:block}
+[data-cifre-nascoste] :is(.k-liq,.k-pat) > b:not(.k-cifre-nascoste){display:none}
+[data-cifre-nascoste] :is(.k-liq .k-conti,.k-pat .k-ring){visibility:hidden}
 .top2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .sq{aspect-ratio:1/1;display:flex;flex-direction:column;justify-content:space-between;min-width:0}
 .sq .io small{margin:6px 0 1px}
@@ -1280,14 +1295,17 @@ function render(){
 /* ---- Panoramica ---- */
 function donut(data){
   const tot = sum(data.map(d=>d[1])) || 1; const R=48, C=2*Math.PI*R; let off=0;
-  const arcs = data.map(([k,v],i)=>{ const len=v/tot*C; const s=`<circle cx="64" cy="64" r="${R}" fill="none" stroke="${k==='Altre'&&i===PAL.length-1?'#9a9f9c':PAL[i%PAL.length]}" stroke-width="16" stroke-dasharray="${len} ${C-len}" stroke-dashoffset="${-off}"/>`; off+=len; return s; }).join('');
+  const arcs = data.map(([,v,categorie],i)=>{ const len=v/tot*C; const s=`<circle cx="64" cy="64" r="${R}" fill="none" stroke="${categorie.length>1?'#9a9f9c':PAL[i%PAL.length]}" stroke-width="16" stroke-dasharray="${len} ${C-len}" stroke-dashoffset="${-off}"/>`; off+=len; return s; }).join('');
   return `<div class="donut"><svg class="moto-ciambella" viewBox="0 0 128 128"><circle cx="64" cy="64" r="${R}" fill="none" style="stroke:var(--panel2)" stroke-width="16"/>${arcs}</svg><div class="c"><div><b class="mono">${eur0(tot)}</b>uscite</div></div></div>`;
 }
 function renderHome(){
   const p = periodTx(); const U = p.filter(t=>t.t==='u'), E = p.filter(t=>t.t==='e');
   const tu = sum(U.map(spesa)), te = sum(E.map(t=>t.amt)), saldo = te-tu;
-  let byCat = groupBy(U, t=>t.cat);
-  if(byCat.length > PAL.length) byCat = [...byCat.slice(0, PAL.length-1), ['Altre', sum(byCat.slice(PAL.length-1).map(x=>x[1]))]];
+  const byCat = groupBy(U, t=>t.cat).map(([nome, totale])=>[nome, totale, [nome]]);
+  if(byCat.length > PAL.length){
+    const altre = byCat.splice(PAL.length-1);
+    byCat.push(['Altre', sum(altre.map(x=>x[1])), altre.flatMap(x=>x[2])]);
+  }
   const yU = Array(12).fill(0), yE = Array(12).fill(0);
   S.tx.filter(t=>txYear(t)===ui.year && (t.t==='u' || t.t==='e')).forEach(t=>{ (t.t==='u'?yU:yE)[txMonth(t)] += spesa(t); });
   const mx = Math.max(1,...yU,...yE);
@@ -1304,10 +1322,26 @@ function renderHome(){
     </div>
     <div class="grid2 h-kpi">${kpiConti()}</div>
     <div class="h-cat"><h2 class="sec">Uscite per categoria</h2>
-    <div class="card">${byCat.length ? `<div class="donut-wrap">${donut(byCat)}<div class="legend">${byCat.map(([k,v],i)=>`<div><i style="background:${k==='Altre'&&i===PAL.length-1?'#9a9f9c':PAL[i%PAL.length]}"></i><span>${esc(k)}</span><b class="mono eu">${eurI(v)}</b><b class="mono pc">${Math.round(v/(tu||1)*100)}%</b></div>`).join('')}</div></div>` : '<div class="empty">Nessuna uscita nel periodo</div>'}</div></div>
+    <div class="card">${byCat.length ? `<div class="donut-wrap">${donut(byCat)}<div class="legend">${byCat.map(([k,v,categorie],i)=>`<button type="button" aria-haspopup="dialog"><i style="background:${categorie.length>1?'#9a9f9c':PAL[i%PAL.length]}"></i><span>${esc(k)}</span><b class="mono eu">${eurI(v)}</b><b class="mono pc">${Math.round(v/(tu||1)*100)}%</b></button>`).join('')}</div></div>` : '<div class="empty">Nessuna uscita nel periodo</div>'}</div></div>
     <div class="h-bars"><h2 class="sec">Entrate vs uscite · ${ui.year}</h2>
     <div class="card"><div style="display:flex;gap:2px">${bars}</div>
       <div class="note" style="margin-top:10px;display:flex;gap:14px"><span><b style="color:var(--pos)">●</b> Entrate</span><span><b style="color:var(--neg)">●</b> Uscite</span></div></div></div></div>`;
+  $('v-home').querySelectorAll('.legend button').forEach((btn, i)=>{
+    const [nome, , categorie] = byCat[i];
+    btn.onclick = ()=>apriUsciteCategoria(nome, categorie);
+  });
+}
+function apriUsciteCategoria(nome, categorie){
+  const list = periodTx().filter(t=>t.t==='u' && categorie.includes(t.cat)).sort((a,b)=>b.d.localeCompare(a.d));
+  sheet(`<h3>${esc(nome)}</h3>
+    <p class="note" style="margin:-6px 0 12px">Uscite · ${esc(periodLabel())} · <b class="mono" style="color:var(--ink)">${eur(sum(list.map(spesa)))}</b></p>
+    ${righeDettaglioMovimenti(list, categorie.length>1)}`);
+  $('sheet').querySelectorAll('[data-movimento]').forEach(riga=>{
+    riga.onclick = ()=>{
+      ritornoCella = {nome, categorie};
+      openTx(riga.dataset.movimento);
+    };
+  });
 }
 
 // conti da mostrare in Panoramica: i saldi di oggi, o per un mese passato la foto dello storico del patrimonio
@@ -1332,11 +1366,11 @@ function kpiConti(){
   const pl = patr>0 ? Math.min(1, Math.max(0, liq/patr)) : 0, R = 26, C = 2*Math.PI*R;
   // fatture in sospeso: terza parte dell'anello, dopo la liquidità
   const fat = vista.fat||0, pf = patr>0 && fat>0 ? Math.min(1-pl, fat/patr) : 0, P = x => Math.round(x*100);
-  return `<div class="card kpi k-liq" onclick="showTab('pat')"><small>Liquidità${nota}</small><b class="mono">${eur0(liq)}</b>
+  return `<div class="card kpi k-liq" onclick="showTab('pat')"><small>Liquidità${nota}</small><b class="mono">${eur0(liq)}</b><b class="mono k-cifre-nascoste" aria-label="Importo nascosto">••••</b>
       <div class="k-conti">${top.map(c=>`<div><span class="k-n">${contoIcon(c)}<span>${esc(c.n)}</span></span><span class="mono">${eurI(c.v)}</span></div>`).join('')
         || (vista.nota ? '<small>Foto con i soli totali: banche e contanti</small>' : '<small>Aggiungi i conti in Patrimonio</small>')}
         ${altri.length ? `<small>+ altri ${altri.length} · ${eurI(sum(altri.map(c=>c.v)))}</small>` : ''}</div></div>
-    <div class="card kpi k-pat" onclick="showTab('pat')"><small>Patrimonio${nota}</small><b class="mono">${eur0(patr)}</b>
+    <div class="card kpi k-pat" onclick="showTab('pat')"><small>Patrimonio${nota}</small><b class="mono">${eur0(patr)}</b><b class="mono k-cifre-nascoste" aria-label="Importo nascosto">••••</b>
       <div class="k-ring"><svg viewBox="0 0 64 64" role="img" aria-label="${P(pl)}% liquidità, ${pf?P(pf)+'% fatture in sospeso, ':''}${100-P(pl)-P(pf)}% investito">
           <circle cx="32" cy="32" r="${R}" fill="none" style="stroke:var(--blue)" stroke-width="9"/>
           <circle cx="32" cy="32" r="${R}" fill="none" style="stroke:var(--acc)" stroke-width="9" stroke-dasharray="${pl*C} ${C-pl*C}"/>${pf ? `
@@ -1553,9 +1587,15 @@ function mxElimina(r, m, tutti){
 let ritornoCella = null;
 function versoCella(){ ritornoCella = mxCella.ultima; }
 function tornaAllaCella(rit){
-  if(!rit || ui.tab!=='mx') return;
+  if(!rit) return;
+  if(ui.tab==='home' && rit.categorie) return apriUsciteCategoria(rit.nome, rit.categorie);
+  if(ui.tab!=='mx') return;
   const r = mxRighe.findIndex(x=>x.cat===rit.cat && x.sub===rit.sub && x.det===rit.det && !!x.fuel===!!rit.fuel);
   if(r>=0) mxCella(r, rit.m);
+}
+function righeDettaglioMovimenti(list, mostraCategoria = false){
+  return list.map(t=>`<div class="tx" data-movimento="${esc(t.id)}"><div class="mid"><b>${esc([t.sub||t.cat, t.det].filter(Boolean).join(' · '))}</b><small>${esc([fmtD(t.d), mostraCategoria && t.sub ? t.cat : '', (t.note||'').startsWith('Totale mensile')?'':t.note, pagLabel(t), t.quota!=null?`gruppo: pagati ${eur(t.amt)}`:''].filter(Boolean).join(' · '))}</small></div>
+    <b class="mono ${t.t==='e'?'pos':''}">${t.t==='e'?'+':'-'}${eur(spesa(t))}</b></div>`).join('') || '<div class="empty">Nessun movimento.</div>';
 }
 function mxCella(r, m){
   const {cat, sub, det, fuel} = mxRighe[r], tipo = ui.mxTipo;
@@ -1568,10 +1608,12 @@ function mxCella(r, m){
   sheet(`<h3>${esc(cat)}${fuel ? ' · Carburante, tutti i mezzi' : ''}${sub && sub!=='—' ? ' · '+esc(sub) : ''}${det && det!=='—' ? ' · '+esc(det) : ''}</h3>
     <p class="note" style="margin:-6px 0 12px">${tipo==='u'?'Uscite':'Entrate'} · ${m<0 ? ui.year : MESI[m]+' '+ui.year} · <b class="mono" style="color:var(--ink)">${eur(sum(list.map(spesa)))}</b></p>
     <button class="btn" style="margin-bottom:12px" onclick="versoCella();openTx('', '', ${pre})">+ Aggiungi ${tipo==='u'?'uscita':'entrata'}</button>
-    ${list.map(t=>`<div class="tx" onclick="versoCella();openTx('${t.id}')"><div class="mid"><b>${esc([t.sub||t.cat, t.det].filter(Boolean).join(' · '))}</b><small>${esc([fmtD(t.d), t.note.startsWith('Totale mensile')?'':t.note, pagLabel(t), t.quota!=null?`gruppo: pagati ${eur(t.amt)}`:''].filter(Boolean).join(' · '))}</small></div>
-      <b class="mono ${t.t==='e'?'pos':''}">${t.t==='e'?'+':'-'}${eur(spesa(t))}</b></div>`).join('') || '<div class="empty">Nessun movimento.</div>'}
+    ${righeDettaglioMovimenti(list)}
     ${nDel ? `<button class="btn danger" style="margin-top:8px" onclick="mxElimina(${r},${m},false)">Elimina ${nDel===1?'questo movimento':'questi '+nDel+' movimenti'}</button>` : ''}
     ${nTutti > nDel ? `<button class="btn danger" style="margin-top:8px" onclick="mxElimina(${r},${m},true)">Elimina in tutti gli anni (${nTutti})</button>` : ''}`);
+  $('sheet').querySelectorAll('[data-movimento]').forEach(riga=>{
+    riga.onclick = ()=>{ versoCella(); openTx(riga.dataset.movimento); };
+  });
 }
 
 /* ---- Ordine personalizzato delle categorie (Mensile) ----
