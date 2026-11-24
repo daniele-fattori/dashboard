@@ -347,6 +347,18 @@ nav button.on{color:var(--acc)}
 .est-d{font-size:13px;margin:3px 0 7px;word-break:break-word}
 .est-d em{font-style:normal;font-size:11px;color:var(--warn);margin-left:4px}
 .est-r select{width:100%;font-size:14px;padding:8px 10px;border-radius:10px}
+.carb-import-righe{max-height:45vh;overflow:auto}
+.carb-import-righe input{width:auto;flex:none}
+@media (max-width:699px){
+  #v-carburante button,.carb-collegamento{min-height:44px}
+  #v-carburante .carb-mese button{min-width:44px;font-size:18px}
+  #v-carburante .carb-azioni,.carb-form .grid2{grid-template-columns:1fr}
+  .sheet:has(.carb-form){max-height:calc(100dvh - var(--sat) - 12px);overscroll-behavior:contain}
+  .carb-form input[type="file"]{max-width:100%}
+  .carb-form .btn,.carb-import-righe label{min-height:44px}
+  .carb-import-righe{max-height:none;overflow:visible}
+  .carb-import-righe .mid b{white-space:normal;overflow-wrap:anywhere}
+}
 .chk{display:flex;gap:8px;align-items:center;justify-content:center;margin-top:12px;font-size:13px;color:var(--ink2)}
 .chk input{width:auto}
 .sync{width:8px;height:8px;border-radius:50%;display:none;cursor:pointer}
@@ -1461,8 +1473,9 @@ function renderMovList(){
 /* ---- Mensile (come la tabella Contabilità di Numbers) ---- */
 // su telefono Altro raccoglie Mensile, Abbonamenti, Investimenti e Trading
 function altroSeg(cur){
-  return `<div class="seg" style="margin-bottom:14px">${[['mx','Mensile'],['abbo','Abbon.'],['inv','Invest.'],['trading','Trading']].map(([v,l])=>
-    `<button class="${cur===v?'on':''}" onclick="${v==='mx' ? "showTab('mx')" : `ui.altro='${v}';ui.altroTel='${v}';showTab('altro')`}">${l}</button>`).join('')}</div>`;
+  return `<div class="seg" style="margin-bottom:8px">${[['mx','Mensile'],['abbo','Abbon.'],['inv','Invest.'],['trading','Trading']].map(([v,l])=>
+    `<button class="${cur===v?'on':''}" onclick="${v==='mx' ? "showTab('mx')" : `ui.altro='${v}';ui.altroTel='${v}';showTab('altro')`}">${l}</button>`).join('')}</div>
+    <button class="btn ghost carb-collegamento" style="margin-bottom:14px" onclick="showTab('carburante')">Carta carburante aziendale</button>`;
 }
 // su schermo largo la tabella del Mensile è alta quanto lo spazio che resta sotto i comandi: finisce dentro la scheda,
 // si scorre solo lei (non anche la pagina) e si vedono più righe
@@ -2054,7 +2067,7 @@ function renderAltro(){
   } else if(ui.altro==='abbo'){
     body = renderAbbo();
   } else if(ui.altro==='carte'){
-    body = `<button class="btn ghost" style="margin-bottom:12px" onclick="showTab('carburante')">Carta carburante aziendale</button>` + renderCarte();
+    body = `<button class="btn ghost carb-collegamento" style="margin-bottom:12px" onclick="showTab('carburante')">Carta carburante aziendale</button>` + renderCarte();
   } else if(ui.altro==='inv'){
     body = renderInv();
   } else {
@@ -3710,7 +3723,7 @@ function renderCarburante(){
   const mese = meseCarburante();
   const {movimenti, budget, speso, residuo} = riepilogoCarburante(S.carburante, mese);
   $('v-carburante').innerHTML = `
-    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px">
+    <div class="carb-mese" style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px">
       <button class="chip" onclick="meseCarburanteVai(-1)" aria-label="Mese precedente">‹</button>
       <strong aria-live="polite">${nomeMeseCarburante(mese)}</strong>
       <button class="chip" onclick="meseCarburanteVai(1)" aria-label="Mese successivo">›</button>
@@ -3724,7 +3737,7 @@ function renderCarburante(){
       <button class="chip" onclick="apriLimiteCarburante()">${budget ? 'Modifica limite' : 'Imposta limite'}</button>
     </div>
     <p class="note">I rifornimenti della carta aziendale sono separati dalle spese personali.</p>
-    <div class="grid2"><button class="btn" onclick="apriRifornimento()">Aggiungi rifornimento</button>
+    <div class="grid2 carb-azioni"><button class="btn" onclick="apriRifornimento()">Aggiungi rifornimento</button>
       <button class="btn ghost" onclick="apriImportCarburante()">Carica spese</button></div>
     <h2 class="sec">Rifornimenti del mese</h2>
     ${movimenti.length ? movimenti.map(r => `
@@ -3734,9 +3747,9 @@ function renderCarburante(){
 }
 function apriLimiteCarburante(){
   const mese = meseCarburante(), {budget} = riepilogoCarburante(S.carburante, mese);
-  sheet(`<h3>Limite mensile</h3><p class="note">Vale da ${nomeMeseCarburante(mese).toLowerCase()} finché non imposti un nuovo limite.</p>
+  sheet(`<div class="carb-form"><h3>Limite mensile</h3><p class="note">Vale da ${nomeMeseCarburante(mese).toLowerCase()} finché non imposti un nuovo limite.</p>
     <div class="f"><label for="carb-limite">Limite in euro</label><input id="carb-limite" inputmode="decimal" value="${budget ? budget.amt : ''}"></div>
-    <button class="btn" onclick="salvaLimiteCarburante()">Salva limite</button>`);
+    <button class="btn" onclick="salvaLimiteCarburante()">Salva limite</button></div>`);
 }
 function salvaLimiteCarburante(){
   const amt = estNum($('carb-limite').value);
@@ -3748,12 +3761,12 @@ function salvaLimiteCarburante(){
 function apriRifornimento(id){
   const r = S.carburante.find(item => item.id === id && item.tipo === 'rifornimento');
   const mese = meseCarburante(), data = r?.d || (today().startsWith(mese) ? today() : mese + '-01');
-  sheet(`<h3>${r ? 'Modifica rifornimento' : 'Aggiungi rifornimento'}</h3>
+  sheet(`<div class="carb-form"><h3>${r ? 'Modifica rifornimento' : 'Aggiungi rifornimento'}</h3>
     <div class="grid2"><div class="f"><label for="carb-data">Data</label><input type="date" id="carb-data" value="${esc(data)}"></div>
     <div class="f"><label for="carb-importo">Importo in euro</label><input id="carb-importo" inputmode="decimal" value="${r?.amt ?? ''}"></div></div>
     <div class="f"><label for="carb-stazione">Distributore o nota</label><input id="carb-stazione" value="${esc(r?.desc)}"></div>
     <button class="btn" data-id="${esc(r?.id)}" onclick="salvaRifornimento(this.dataset.id)">Salva rifornimento</button>
-    ${r ? `<button class="btn danger" style="margin-top:8px" data-id="${esc(r.id)}" onclick="eliminaRifornimento(this.dataset.id)">Elimina rifornimento</button>` : ''}`);
+    ${r ? `<button class="btn danger" style="margin-top:8px" data-id="${esc(r.id)}" onclick="eliminaRifornimento(this.dataset.id)">Elimina rifornimento</button>` : ''}</div>`);
 }
 function salvaRifornimento(id){
   const d = estData($('carb-data').value), amt = round2(estNum($('carb-importo').value) || 0);
@@ -3770,9 +3783,9 @@ function eliminaRifornimento(id){
 }
 function apriImportCarburante(){
   ui.importCarburante = [];
-  sheet(`<h3>Carica spese carburante</h3><p class="note">Scegli un estratto CSV, Excel o PDF. Nell’anteprima seleziona solo gli addebiti per rifornimenti.</p>
-    <div class="f"><label for="carb-file">File dell’estratto</label><input id="carb-file" type="file" accept=".csv,.xlsx,.xls,.ods,.pdf" onchange="leggiImportCarburante(this)"></div>
-    <div id="carb-anteprima" aria-live="polite"></div>`);
+  sheet(`<div class="carb-form"><h3>Carica spese carburante</h3><p class="note">Scegli un estratto CSV, Excel o PDF. Nell’anteprima seleziona solo gli addebiti per rifornimenti.</p>
+    <div class="f"><label for="carb-file">File dell’estratto</label><input id="carb-file" type="file" accept=".csv,.xlsx,.xls,.xlsm,.ods,.pdf,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,application/vnd.oasis.opendocument.spreadsheet,application/pdf" onchange="leggiImportCarburante(this)"></div>
+    <div id="carb-anteprima" aria-live="polite"></div></div>`);
 }
 const rifornimentoChiave = r => `${r.d}|${Math.round(r.amt*100)}|${estNorm(r.desc || 'Movimento')}`;
 function preparaImportCarburante(records, movimenti){
@@ -3799,8 +3812,8 @@ async function leggiImportCarburante(input){
     if(!movimenti.length){ preview.textContent = 'Nessuna riga leggibile. Prova con il CSV della carta o inserisci a mano.'; return; }
     ui.importCarburante = movimenti;
     preview.innerHTML = `<p class="note">Verifica la descrizione e il segno originale prima di selezionare le righe.</p>
-      <div style="max-height:45vh;overflow:auto">${preparaImportCarburante(S.carburante, movimenti).map(({r, duplicato},i) => `
-        <label class="tx"><input type="checkbox" data-riga="${i}" style="width:auto" ${duplicato ? 'disabled' : ''}>
+      <div class="carb-import-righe">${preparaImportCarburante(S.carburante, movimenti).map(({r, duplicato},i) => `
+        <label class="tx"><input type="checkbox" data-riga="${i}" ${duplicato ? 'disabled' : ''}>
           <span class="mid" style="flex:1"><b>${esc(r.desc)}</b><small>${fmtD(r.d)}${duplicato ? ' · Già registrato' : ''}</small></span>
           <strong class="mono">${eur(movimenti[i].amt)}</strong></label>`).join('')}</div>
       <button class="btn" style="margin-top:10px" onclick="salvaImportCarburante()">Importa selezione</button>`;
