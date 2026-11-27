@@ -1104,6 +1104,7 @@ function pagLabel(t){
   if(t.carta) return cartaEtichetta(carte().find(k=>k.id===t.carta) || {n:cartaName(t.carta)});
   const c = S.conti.find(x=>x.id===t.conto);
   if(!c || !t.pag) return '';
+  if(t.t==='e') return c.n;
   return t.pag==='carta' ? debitoName(c) : t.pag==='conto' ? 'Conto '+c.n : 'Contanti';
 }
 const pagValue = t => t.carta ? 'k:'+t.carta : t.pag && t.conto ? `${t.pag==='conto'?'c':t.pag==='contanti'?'x':'d'}:${t.conto}` : '';
@@ -1124,9 +1125,9 @@ function pagParse(v){
   const [k,id] = v.split(':');
   return k==='k' ? {carta:id, pag:'', conto:''} : id ? {carta:'', pag:{d:'carta',c:'conto',x:'contanti'}[k], conto:id} : {carta:'', pag:'', conto:''};
 }
-// effetto di una spesa sul saldo del conto (sign -1 per annullarlo)
+// effetto del movimento sul saldo del conto (sign -1 per annullarlo)
 function applyPag(t, sign=1){
-  if(!t || !t.pag || !t.conto) return;
+  if(!t || !t.pag || !t.conto || (t.t==='e' && t.saldi===false)) return;
   const c = S.conti.find(x=>x.id===t.conto); if(c) c.v = round2(c.v - sign*(t.t==='e'||t.t==='rb'?-1:1)*t.amt);
 }
 /* ---- Storico del patrimonio: una "foto" per mese ----
@@ -1145,7 +1146,7 @@ function contiAl(data){
   const v = new Map(S.conti.map(c=>[c.id, c.v]));
   const add = (id, x) => { if(v.has(id)) v.set(id, round2(v.get(id) + x)); };
   S.tx.forEach(t=>{
-    if(t.d<=data) return;
+    if(t.d<=data || (t.t==='e' && t.saldi===false)) return;
     if(t.pag && t.conto) add(t.conto, t.t==='u' ? t.amt : -t.amt);   // debito, conto, contanti
     else if(t.rid && t.conto && !t.carta) add(t.conto, t.amt);        // rata pagata dal conto
   });
@@ -2693,6 +2694,16 @@ function openTx(id, carta, pre){
     </div>
     <p class="note" id="t-mezzi" style="display:none;margin:-4px 0 12px">Le spese dei mezzi registrale in Mezzi: arrivano qui da sole, con lo stesso dettaglio e il conto scelto lì.</p>
     <div class="f"><label>Nota</label><input id="t-n" value="${esc(t.note.startsWith('Totale mensile')?t.note:t.note)}" placeholder="facoltativa"></div>
+    <div class="f" id="t-accredito-w" ${t.t==='e'?'':'hidden'}>
+      <label for="t-accredito">Conto di accredito</label>
+      <select id="t-accredito" onchange="$('t-accredito-incluso-w').hidden=!this.value">
+        <option value="">Non specificato</option>
+        ${S.conti.filter(liquido).map(c=>`<option value="${esc(c.id)}" ${t.t==='e'&&c.id===t.conto?'selected':''}>${esc(c.n)}</option>`).join('')}
+      </select>
+      <div id="t-accredito-incluso-w" ${t.t==='e'&&S.conti.some(c=>liquido(c)&&c.id===t.conto)?'':'hidden'}>
+        <label class="chk" style="justify-content:flex-start"><input type="checkbox" id="t-accredito-incluso" ${t.saldi===false?'checked':''}> Già incluso nel saldo del conto</label>
+      </div>
+    </div>
     <div class="f" id="t-k-w" style="display:${t.t==='u'?'block':'none'}"><label id="t-k-l">${rp?'Rate pagate con':'Pagato con'}</label><select id="t-k" ${t.rid||t.pf?'disabled':''}>${pagOptions(rp ? (rp.carta ? 'k:'+rp.carta : rp.conto ? 'c:'+rp.conto : '') : id ? pagValue(t) : carta ? 'k:'+carta : ui.lastPag||'')}</select>
       ${t.pf?'<p class="note" style="margin:4px 0 0">Spesa rateizzata con la carta: per cambiarla annulla prima la rateizzazione nella sezione Carte.</p>':''}</div>
     <div class="f" id="t-es-w" style="display:none" data-ciclo="${t.ciclo||''}" data-chiuso="${estrattoChiuso(t)?1:''}"><label>Estratto conto</label><select id="t-es" ${estrattoChiuso(t)||t.pf?'disabled':''}></select></div>
@@ -2765,6 +2776,7 @@ function openDaLavoro(t){
 }
 function setTxT(v){
   $('t-t').value=v; draftT=v; $('t-k-w').style.display = v==='u'?'block':'none'; $('t-r-w').style.display = v==='u'?'block':'none'; $('t-g-w').style.display = v==='u'?'block':'none';
+  $('t-accredito-w').hidden = v!=='e';
   document.querySelectorAll('#tx-seg button').forEach(b=>b.classList.toggle('on',b.classList.contains(v)));
   fillCats(''); txEstratto();
 }
@@ -2815,7 +2827,12 @@ function saveTx(id){
     if(o.quota<0 || o.quota>=o.amt) return toast('La tua quota deve essere minore dell\'importo pagato');
   } else if(id && rimborsi({id}).length) return toast('Ci sono rimborsi ricevuti: eliminali prima di togliere "Acquisto di gruppo"');
   const old = id && S.tx.find(x=>x.id===id);
-  if(!(old && (old.rid || old.pf))) Object.assign(o, o.t==='u' ? pagParse($('t-k').value) : {carta:'', pag:'', conto:''});
+  if(o.t==='e'){
+    const conto = $('t-accredito').value;
+    if(conto && !S.conti.some(c=>liquido(c)&&c.id===conto)) return toast('Il conto di accredito non è più disponibile');
+    Object.assign(o, {carta:'', pag:conto?'conto':'', conto});
+    if(conto && $('t-accredito-incluso').checked) o.saldi = false;
+  } else if(!(old && (old.rid || old.pf))) Object.assign(o, pagParse($('t-k').value));
   if(o.carta && soloCarburante(o.carta) && !(old && old.carta===o.carta) && !carburante(o)) return toast(`${cartaName(o.carta)} si usa solo per i rifornimenti (Mezzi › mezzo › Benzina o Gasolio)`);
   const esScelto = o.carta && $('t-es-w') && $('t-es-w').style.display!=='none' && !$('t-es').disabled ? $('t-es').value : null;
   if(esScelto && esScelto!=='auto') o.ciclo = esScelto;
@@ -2841,9 +2858,9 @@ function saveTx(id){
   if(chiuso({...o, carta:o.carta}) && !(old && old.carta===o.carta && cicloTx(o)===cicloTx(old))) return toast('L\'estratto conto di quel mese è già stato addebitato');
   if(old && old.ciclo && !o.ciclo && (esScelto==='auto' || o.d!==old.d || o.carta!==old.carta)) delete old.ciclo; // automatico, o data o carta cambiate: l'estratto lo decide di nuovo la regola
   if(old && old.pf){ const f=carte().flatMap(c=>c.flex||[]).find(f=>f.id===old.pf); if(f && o.amt!==old.amt){ if(f.done) return toast('Rateizzazione già in corso: l\'importo non si può cambiare'); f.imp=o.amt; } }
-  // carta di debito / conto / contanti: l'importo esce subito dal conto (prima tolgo l'effetto della versione vecchia)
+  // prima annullo l'effetto della versione vecchia, poi applico il movimento aggiornato
   if(old) applyPag(old, -1);
-  if(old){ Object.assign(old,o); if(!gruppo) delete old.quota; if(!o.det) delete old.det; } else S.tx.push({id:uid(),...o});
+  if(old){ if(old.t==='e' && o.saldi!==false) delete old.saldi; Object.assign(old,o); if(!gruppo) delete old.quota; if(!o.det) delete old.det; } else S.tx.push({id:uid(),...o});
   const tx = old || S.tx[S.tx.length-1];
   applyPag(tx);
   if(o.t==='u' && !(old && (old.rid || old.pf))) ui.lastPag = $('t-k').value;
@@ -2869,7 +2886,7 @@ function delTx(id){
   const rb = rimborsi(t);
   if(rb.length && !confirm(`Eliminare anche i ${rb.length} rimborsi ricevuti per questo acquisto (${eur(sum(rb.map(x=>x.amt)))})? Gli importi vengono tolti dai conti.`)) return;
   rb.forEach(x=>applyPag(x, -1));
-  applyPag(t, -1); // restituisce l'importo al conto
+  applyPag(t, -1); // annulla l'effetto sul saldo
   S.tx=S.tx.filter(x=>x.id!==id && x.gid!==id); save(); closeSheet(); render(); toast('Eliminato'); tornaAllaCella(rit);
   mezziTogli([t]);
 }
