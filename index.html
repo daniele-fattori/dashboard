@@ -1603,7 +1603,7 @@ document.addEventListener('click', e => {
     return;
   }
   await Cassaforte.porta({ nome: 'il tuo account', bilancio: 'bilancio/' });
-  bil.src = 'bilancio/index.html';
+  bil.src = 'bilancio/index.html?v=1a58e34';
   // arrivato da un'app aperta da sola (?torna=…): si apre qui dentro
   const torna = new URLSearchParams(location.search).get('torna');
   if(['bilancio/', 'palestra/', 'lavoro/'].includes(torna)){ history.replaceState(null, '', location.pathname); dashVai(torna); }
